@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id          Int       @id @default(autoincrement())
+  name        String    @default("الشركة الافتراضية")
+  taxNumber   String?
+  commercialReg String?
+  currency    String    @default("EGP")
+  isDefault   Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  accounts    Account[]
+
+  @@map("companies")
+}
+
+model Account {
+  id            Int       @id @default(autoincrement())
+  companyId     Int
+  code          String
+  name          String
+  nameEn        String?
+  accountClass  String    // "الأصول", "الخصوم", "حقوق الملكية", "الإيرادات", "المصروفات"
+  mainGroup     String?   // "الأصول المتداولة", "الأصول الثابتة", ...
+  subGroup      String?   // "النقدية بالصندوق", "البنوك", ...
+  nature        String    // "مدين", "دائن"
+  statementType String    // "قائمة المركز المالي", "قائمة الدخل"
+  level         Int       // 1, 2, 3, 4
+  parentCode    String?
+  isGroup       Boolean   @default(false)
+  isSystem      Boolean   @default(false)
+  isActive      Boolean   @default(true)
+  balance       Decimal   @default(0) @db.Decimal(15, 2)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent        Account?  @relation("AccountHierarchy", fields: [companyId, parentCode], references: [companyId, code])
+  children      Account[] @relation("AccountHierarchy")
+
+  @@unique([companyId, code])
+  @@index([companyId, parentCode])
+  @@index([companyId, accountClass])
+  @@index([companyId, level])
+  @@map("accounts")
+}
