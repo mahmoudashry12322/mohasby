@@ -1,87 +1,87 @@
-import type { Metadata } from 'next';
-import { NextIntlClientProvider } from 'next-intl';
-import { getMessages } from 'next-intl/server';
-import { Noto_Kufi_Arabic, Cairo, Familjen_Grotesk } from 'next/font/google';
-import '../globals.css';
+import type { Metadata } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages } from "next-intl/server";
+import { Noto_Kufi_Arabic, Cairo, Familjen_Grotesk } from "next/font/google";
+import "../globals.css";
 
 const notoKufi = Noto_Kufi_Arabic({
-  subsets: ['arabic'],
-  weight: ['600', '700', '800'],
-  variable: '--font-kufi',
-  display: 'swap',
+  subsets: ["arabic"],
+  weight: ["600", "700", "800"],
+  variable: "--font-kufi",
+  display: "swap",
 });
 
 const cairo = Cairo({
-  subsets: ['arabic', 'latin'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-cairo',
-  display: 'swap',
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-cairo",
+  display: "swap",
 });
 
 const familjen = Familjen_Grotesk({
-  subsets: ['latin'],
-  weight: ['600', '700'],
-  variable: '--font-familjen',
-  display: 'swap',
+  subsets: ["latin"],
+  weight: ["600", "700"],
+  variable: "--font-familjen",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://mohasby.mahmoudashry.site'),
+  metadataBase: new URL("https://mohasby.mahmoudashry.site"),
   title: {
-    default: 'مُحاسبي — دفتر حسابات عربي متزن للشركات المصرية',
-    template: '%s | مُحاسبي',
+    default: "مُحاسبي — دفتر حسابات عربي متزن للشركات المصرية",
+    template: "%s | مُحاسبي",
   },
   description:
-    'برنامج محاسبة سحابي عربي للشركات التجارية والتبريد والتخزين والتصنيع والزراعة في مصر. قيود يومية، مخازن وثلاجات، مراكز تكلفة وقوائم مالية متزنة من أول قيد.',
+    "برنامج محاسبة سحابي عربي للشركات التجارية والتبريد والتخزين والتصنيع والزراعة في مصر. قيود يومية، مخازن وثلاجات، مراكز تكلفة وقوائم مالية متزنة من أول قيد.",
   keywords: [
-    'محاسبي',
-    'برنامج محاسبة مصري',
-    'قيود يومية مزدوجة',
-    'إدارة ثلاجات وتبريد',
-    'حسابات مخازن ولوتات',
-    'مراكز تكلفة',
-    'تسوية بنكية وشيكات',
-    'برنامج حسابات مصر',
+    "محاسبي",
+    "برنامج محاسبة مصري",
+    "قيود يومية مزدوجة",
+    "إدارة ثلاجات وتبريد",
+    "حسابات مخازن ولوتات",
+    "مراكز تكلفة",
+    "تسوية بنكية وشيكات",
+    "برنامج حسابات مصر",
   ],
-  authors: [{ name: 'مُحاسبي' }],
-  creator: 'مُحاسبي',
-  publisher: 'مُحاسبي',
+  authors: [{ name: "مُحاسبي" }],
+  creator: "مُحاسبي",
+  publisher: "مُحاسبي",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
   openGraph: {
-    title: 'مُحاسبي — دفتر حسابات عربي متزن للشركات المصرية',
+    title: "مُحاسبي — دفتر حسابات عربي متزن للشركات المصرية",
     description:
-      'قيود اليومية والمخازن والثلاجات ومراكز التكلفة والبنوك والمرتبات، في دفتر محاسبي واحد يراجع نفسه قبل أن تراجعه أنت.',
-    url: 'https://mohasby.mahmoudashry.site',
-    siteName: 'مُحاسبي',
-    locale: 'ar_EG',
-    type: 'website',
+      "قيود اليومية والمخازن والثلاجات ومراكز التكلفة والبنوك والمرتبات، في دفتر محاسبي واحد يراجع نفسه قبل أن تراجعه أنت.",
+    url: "https://mohasby.mahmoudashry.site",
+    siteName: "مُحاسبي",
+    locale: "ar_EG",
+    type: "website",
     images: [
       {
-        url: '/og-image.png',
+        url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: 'مُحاسبي — نظام محاسبي سحابي متزن للشركات المصرية',
+        alt: "مُحاسبي — نظام محاسبي سحابي متزن للشركات المصرية",
       },
     ],
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'مُحاسبي — دفتر حسابات عربي متزن للشركات المصرية',
+    card: "summary_large_image",
+    title: "مُحاسبي — دفتر حسابات عربي متزن للشركات المصرية",
     description:
-      'قيود اليومية والمخازن والثلاجات ومراكز التكلفة والبنوك، في دفتر يمنع الخطأ بدل أن يخفيه.',
-    images: ['/og-image.png'],
+      "قيود اليومية والمخازن والثلاجات ومراكز التكلفة والبنوك، في دفتر يمنع الخطأ بدل أن يخفيه.",
+    images: ["/og-image.png"],
   },
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon.png', type: 'image/png' },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon.png", type: "image/png" },
     ],
-    shortcut: '/favicon.ico',
-    apple: '/favicon.png',
+    shortcut: "/favicon.ico",
+    apple: "/favicon.png",
   },
   robots: {
     index: true,
@@ -89,42 +89,43 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
     },
   },
 };
 
 export default async function RootLayout({
   children,
-  params: { locale },
+  params,
 }: {
   children: React.ReactNode;
-  params: { locale: string };
+  params: Promise<{ locale: string }>;
 }) {
-  const isArabic = locale === 'ar';
-  const dir = isArabic ? 'rtl' : 'ltr';
+  const { locale } = await params;
+  const isArabic = locale === "ar";
+  const dir = isArabic ? "rtl" : "ltr";
   const messages = await getMessages();
 
   const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'مُحاسبي',
-    operatingSystem: 'Cloud / Web Browser',
-    applicationCategory: 'BusinessApplication',
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: "مُحاسبي",
+    operatingSystem: "Cloud / Web Browser",
+    applicationCategory: "BusinessApplication",
     description:
-      'برنامج محاسبة سحابي عربي للشركات التجارية والتبريد والتخزين والتصنيع والزراعة في مصر.',
+      "برنامج محاسبة سحابي عربي للشركات التجارية والتبريد والتخزين والتصنيع والزراعة في مصر.",
     offers: {
-      '@type': 'Offer',
-      price: '0',
-      priceCurrency: 'EGP',
+      "@type": "Offer",
+      price: "0",
+      priceCurrency: "EGP",
     },
-    inLanguage: 'ar',
+    inLanguage: "ar",
     aggregateRating: {
-      '@type': 'AggregateRating',
-      ratingValue: '4.9',
-      reviewCount: '128',
+      "@type": "AggregateRating",
+      ratingValue: "4.9",
+      reviewCount: "128",
     },
   };
 

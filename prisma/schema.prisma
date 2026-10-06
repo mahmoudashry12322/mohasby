@@ -18,6 +18,13 @@ model Company {
   updatedAt   DateTime  @updatedAt
 
   accounts    Account[]
+  users       User[]
+  entries     JournalEntry[]
+  periods     FiscalPeriod[]
+  records     Register[]
+  auditLogs   AuditLog[]
+  sequences   Sequence[]
+  closedThrough DateTime? @db.Date
 
   @@map("companies")
 }
@@ -45,10 +52,170 @@ model Account {
   company       Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
   parent        Account?  @relation("AccountHierarchy", fields: [companyId, parentCode], references: [companyId, code])
   children      Account[] @relation("AccountHierarchy")
+  lines         JournalLine[]
+  cashFlow      String?   // OPERATING, INVESTING, FINANCING, CASH
 
   @@unique([companyId, code])
   @@index([companyId, parentCode])
   @@index([companyId, accountClass])
   @@index([companyId, level])
   @@map("accounts")
+}
+
+model User {
+  id           String @id @default(cuid())
+  companyId    Int
+  email        String @unique
+  name         String
+  passwordHash String
+  role         String @default("accountant")
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+  company      Company @relation(fields: [companyId], references: [id])
+  sessions     Session[]
+  @@index([companyId])
+}
+
+model Session {
+  tokenHash String @id
+  userId    String
+  expiresAt DateTime
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([expiresAt])
+}
+
+model LoginAttempt {
+  key       String @id
+  count     Int @default(1)
+  expiresAt DateTime
+}
+
+model Sequence {
+  companyId Int
+  key       String
+  value     Int @default(0)
+  company   Company @relation(fields: [companyId], references: [id])
+  @@id([companyId, key])
+}
+
+model FiscalPeriod {
+  id        String @id @default(cuid())
+  companyId Int
+  name      String
+  start     DateTime @db.Date
+  end       DateTime @db.Date
+  isClosed  Boolean @default(false)
+  company   Company @relation(fields: [companyId], references: [id])
+  @@unique([companyId, name])
+}
+
+model JournalEntry {
+  id             String @id @default(cuid())
+  companyId      Int
+  number         Int
+  date           DateTime @db.Date
+  description    String
+  kind           String @default("GENERAL")
+  document       String @default("")
+  reference      String @default("")
+  status         String @default("DRAFT")
+  createdBy      String
+  createdAt      DateTime @default(now())
+  postedAt       DateTime?
+  postedBy       String?
+  reversalOf     String? @unique
+  requestKey     String
+  metadata       Json @default("{}")
+  company        Company @relation(fields: [companyId], references: [id])
+  lines          JournalLine[]
+  @@unique([companyId, number])
+  @@unique([id, companyId])
+  @@unique([companyId, requestKey])
+  @@index([companyId, status, date])
+}
+
+model JournalLine {
+  id          String @id @default(cuid())
+  entryId     String
+  companyId   Int
+  accountCode String
+  debit       Decimal @default(0) @db.Decimal(18, 2)
+  credit      Decimal @default(0) @db.Decimal(18, 2)
+  description String @default("")
+  party       String @default("")
+  costCenter  String @default("")
+  costType    String @default("")
+  costItem    String @default("")
+  season      String @default("")
+  farm        String @default("")
+  pivot       String @default("")
+  cashFlow    String @default("")
+  entry       JournalEntry @relation(fields: [entryId, companyId], references: [id, companyId], onDelete: Restrict)
+  account     Account @relation(fields: [companyId, accountCode], references: [companyId, code], onDelete: Restrict)
+  @@index([companyId, accountCode])
+  @@index([companyId, party])
+  @@index([companyId, costCenter])
+}
+
+// Typed registers use server-side Zod schemas. Monetary postings always use
+// JournalEntry/JournalLine, never client-supplied balances in this JSON.
+model Register {
+  id        String @id @default(cuid())
+  companyId Int
+  kind      String
+  code      String
+  name      String
+  data      Json @default("{}")
+  isActive  Boolean @default(true)
+  version   Int @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  company   Company @relation(fields: [companyId], references: [id])
+  stocks    StockMovement[]
+  @@unique([companyId, kind, code])
+  @@unique([id, companyId])
+  @@index([companyId, kind, isActive])
+}
+
+model StockMovement {
+  id           String @id @default(cuid())
+  companyId    Int
+  itemId       String
+  warehouse    String
+  date         DateTime @db.Date
+  direction    Int
+  quantity     Decimal @db.Decimal(18, 3)
+  unitCost     Decimal @db.Decimal(18, 6)
+  value        Decimal @db.Decimal(18, 2)
+  kind         String
+  reference    String
+  entryId      String?
+  requestKey   String
+  metadata     Json @default("{}")
+  createdAt    DateTime @default(now())
+  item         Register @relation(fields: [itemId, companyId], references: [id, companyId], onDelete: Restrict)
+  @@unique([companyId, requestKey])
+  @@index([companyId, itemId, warehouse, date])
+}
+
+model AuditLog {
+  id        String @id @default(cuid())
+  companyId Int
+  userId    String
+  action    String
+  entityId  String
+  detail    Json @default("{}")
+  createdAt DateTime @default(now())
+  company   Company @relation(fields: [companyId], references: [id])
+  @@index([companyId, createdAt])
+}
+
+model InventoryClose {
+  id String @id @default(cuid())
+  companyId Int
+  date DateTime @db.Date
+  snapshots Json
+  entryId String?
+  createdAt DateTime @default(now())
+  @@unique([companyId, date])
 }

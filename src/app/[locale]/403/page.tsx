@@ -1,13 +1,17 @@
-import React from 'react';
-import Link from 'next/link';
-import { Logo } from '@/components/brand/Logo';
-import { ShieldAlert, ArrowRight } from 'lucide-react';
+import React from "react";
+import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
+import { ShieldAlert, ArrowRight } from "lucide-react";
 
-export default function ForbiddenPage({ params: { locale } }: { params: { locale: string } }) {
+export default async function ForbiddenPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
   return (
     <main className="min-h-screen bg-canvas flex items-center justify-center p-4 text-ink-900 text-start">
       <div className="max-w-md w-full bg-white rounded-3xl p-8 sm:p-10 border border-border shadow-card text-center space-y-6">
-        
         <div className="flex justify-center">
           <Logo markSize={36} />
         </div>
@@ -24,7 +28,8 @@ export default function ForbiddenPage({ params: { locale } }: { params: { locale
             صلاحيات الحساب غير كافية
           </h1>
           <p className="text-xs text-ink-600 leading-relaxed font-light">
-            ليس لديك تصريح للوصول إلى هذا الدفتر المالي أو السجل المحاسبي. يرجى تسجيل الدخول بحساب يمتلك صلاحيات الإدارة أو المراجعة.
+            ليس لديك تصريح للوصول إلى هذا الدفتر المالي أو السجل المحاسبي. يرجى
+            تسجيل الدخول بحساب يمتلك صلاحيات الإدارة أو المراجعة.
           </p>
         </div>
 
@@ -37,7 +42,6 @@ export default function ForbiddenPage({ params: { locale } }: { params: { locale
             <ArrowRight className="w-4 h-4 rotate-180" />
           </Link>
         </div>
-
       </div>
     </main>
   );

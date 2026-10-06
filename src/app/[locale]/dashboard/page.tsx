@@ -1,28 +1,34 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Link from 'next/link';
-import { useLocale, useTranslations } from 'next-intl';
-import { NAV_GROUPS } from '@/lib/nav/nav.config';
-import { NavIcon } from '@/lib/nav/nav.icons';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { useLocale, useTranslations } from "next-intl";
+import { NAV_GROUPS } from "@/lib/nav/nav.config";
+import { NavIcon } from "@/lib/nav/nav.icons";
 export default function DashboardHomePage() {
   const locale = useLocale();
-  const tGroup = useTranslations('nav.groups');
-  const tItem = useTranslations('nav.items');
-  const tShell = useTranslations('shell');
+  const tGroup = useTranslations("nav.groups");
+  const tItem = useTranslations("nav.items");
+  const tShell = useTranslations("shell");
 
-  const isRtl = locale === 'ar';
-  const userName = isRtl ? 'محمد السعدني' : 'Mohamed El Saadany';
+  const isRtl = locale === "ar";
+  const [userName, setUserName] = useState("");
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => setUserName(d.user?.name || ""))
+      .catch(() => {});
+  }, []);
 
   // Format current date: dd/mm/yyyy with weekday
   const now = new Date();
-  const day = String(now.getDate()).padStart(2, '0');
-  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, "0");
+  const month = String(now.getMonth() + 1).padStart(2, "0");
   const year = now.getFullYear();
   const dateFormatted = `${day}/${month}/${year}`;
 
-  const weekday = now.toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-US', {
-    weekday: 'long',
+  const weekday = now.toLocaleDateString(locale === "ar" ? "ar-EG" : "en-US", {
+    weekday: "long",
   });
 
   return (
@@ -31,20 +37,23 @@ export default function DashboardHomePage() {
       <div className="border-b border-border pb-6 mb-8">
         <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-2">
           <h1 className="font-kufi font-bold text-2xl lg:text-3xl text-ink-900 tracking-tight">
-            {tShell('greeting', { name: userName })}
+            {tShell("greeting", { name: userName })}
           </h1>
           <div className="text-sm text-ink-canvas font-medium">
             <span>{weekday}</span>
             <span className="mx-2 text-border">•</span>
-            <bdi dir="ltr" className="tabular-nums font-mono text-ink-900 font-semibold">
+            <bdi
+              dir="ltr"
+              className="tabular-nums font-mono text-ink-900 font-semibold"
+            >
               {dateFormatted}
             </bdi>
           </div>
         </div>
         <p className="text-sm lg:text-base text-ink-canvas mt-2">
-          {locale === 'ar'
-            ? 'خريطة الدفاتر والمنظومة المحاسبية — اختر الوحدة للانتقال المباشر لدفاترها وسجلاتها.'
-            : 'Operational system index — select a module to access journals and accounting records.'}
+          {locale === "ar"
+            ? "خريطة الدفاتر والمنظومة المحاسبية — اختر الوحدة للانتقال المباشر لدفاترها وسجلاتها."
+            : "Operational system index — select a module to access journals and accounting records."}
         </p>
       </div>
 
@@ -52,10 +61,11 @@ export default function DashboardHomePage() {
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <h2 className="font-kufi font-bold text-lg text-ink-900">
-            {tShell('allPages')}
+            {tShell("allPages")}
           </h2>
           <span className="text-xs text-ink-canvas font-medium tabular-nums">
-            {locale === 'ar' ? '44 دفتراً وسجلاً' : '44 Journals & Registers'}
+            {NAV_GROUPS.reduce((n, g) => n + g.items.length, 0)}{" "}
+            {locale === "ar" ? "صفحة" : "pages"}
           </span>
         </div>
 
@@ -76,8 +86,7 @@ export default function DashboardHomePage() {
                       {tGroup(group.labelKey as any)}
                     </h3>
                     <span className="text-[13px] text-ink-600 tabular-nums">
-                      {group.items.length}{' '}
-                      {locale === 'ar' ? 'صفحات' : 'pages'}
+                      {group.items.length} {locale === "ar" ? "صفحات" : "pages"}
                     </span>
                   </div>
                 </div>
@@ -86,7 +95,7 @@ export default function DashboardHomePage() {
                 <div className="flex-1 grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-[10px] pt-1">
                   {group.items.map((item) => {
                     const href =
-                      locale === 'ar'
+                      locale === "ar"
                         ? `/dashboard/${group.slug}/${item.slug}`
                         : `/en/dashboard/${group.slug}/${item.slug}`;
 

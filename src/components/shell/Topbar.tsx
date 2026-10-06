@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-import { useLocale, useTranslations } from 'next-intl';
+import React, { useState, useEffect } from "react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
 import {
   MagnifyingGlass,
   Bell,
@@ -11,8 +11,8 @@ import {
   SignOut,
   Gear,
   List,
-} from '@phosphor-icons/react';
-import { Breadcrumb, BreadcrumbItem } from './Breadcrumb';
+} from "@phosphor-icons/react";
+import { Breadcrumb, BreadcrumbItem } from "./Breadcrumb";
 
 interface TopbarProps {
   pageTitle: string;
@@ -30,8 +30,15 @@ export const Topbar: React.FC<TopbarProps> = ({
   const pathname = usePathname();
   const router = useRouter();
   const locale = useLocale();
-  const t = useTranslations('shell');
+  const t = useTranslations("shell");
 
+  const [user, setUser] = useState({ name: "", email: "", role: "" });
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((r) => r.json())
+      .then((d) => setUser(d.user || { name: "", email: "", role: "" }))
+      .catch(() => {});
+  }, []);
   const [isScrolled, setIsScrolled] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -41,19 +48,19 @@ export const Topbar: React.FC<TopbarProps> = ({
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 4);
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   // Language switch handler preserving path
-  const handleLocaleChange = (targetLocale: 'ar' | 'en') => {
+  const handleLocaleChange = (targetLocale: "ar" | "en") => {
     if (targetLocale === locale) return;
 
     let targetPath: string;
-    if (targetLocale === 'en') {
-      targetPath = pathname.startsWith('/en') ? pathname : `/en${pathname}`;
+    if (targetLocale === "en") {
+      targetPath = pathname.startsWith("/en") ? pathname : `/en${pathname}`;
     } else {
-      targetPath = pathname.replace(/^\/en/, '') || '/dashboard';
+      targetPath = pathname.replace(/^\/en/, "") || "/dashboard";
     }
     router.push(targetPath);
   };
@@ -61,17 +68,17 @@ export const Topbar: React.FC<TopbarProps> = ({
   // Logout handler
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' });
+      await fetch("/api/auth/logout", { method: "POST" });
     } catch {
-      // Ignore network errors on logout stub
+      // The server still validates the session on subsequent requests
     }
-    router.push('/login');
+    router.push("/login");
   };
 
   return (
     <header
       className={`sticky top-0 z-20 h-16 bg-white border-b border-border px-4 sm:px-6 lg:px-8 flex items-center justify-between transition-shadow duration-200 ${
-        isScrolled ? 'shadow-sm' : ''
+        isScrolled ? "shadow-sm" : ""
       }`}
     >
       {/* 1. Start Side: Breadcrumb & Title */}
@@ -104,14 +111,14 @@ export const Topbar: React.FC<TopbarProps> = ({
           type="button"
           onClick={onOpenCommandPalette}
           className="flex items-center gap-2.5 h-9 px-3 text-xs sm:text-sm text-ink-600 bg-canvas hover:bg-border/40 border border-border rounded-lg transition-colors duration-150 outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
-          aria-label={t('searchPlaceholder')}
+          aria-label={t("searchPlaceholder")}
         >
           <MagnifyingGlass size={16} weight="bold" className="text-ink-600" />
           <span className="hidden md:inline font-normal text-ink-600">
-            {t('searchPlaceholder')}
+            {t("searchPlaceholder")}
           </span>
           <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[11px] font-medium text-ink-600 bg-white border border-border rounded shadow-2xs">
-            <bdi dir="ltr">{t('searchShortcut')}</bdi>
+            <bdi dir="ltr">{t("searchShortcut")}</bdi>
           </kbd>
         </button>
 
@@ -119,22 +126,22 @@ export const Topbar: React.FC<TopbarProps> = ({
         <div className="hidden sm:inline-flex items-center p-0.5 bg-canvas border border-border rounded-lg text-xs font-medium">
           <button
             type="button"
-            onClick={() => handleLocaleChange('ar')}
+            onClick={() => handleLocaleChange("ar")}
             className={`px-2 py-1 rounded-md transition-colors ${
-              locale === 'ar'
-                ? 'bg-white text-green-950 font-bold shadow-2xs'
-                : 'text-ink-canvas hover:text-ink-900'
+              locale === "ar"
+                ? "bg-white text-green-950 font-bold shadow-2xs"
+                : "text-ink-canvas hover:text-ink-900"
             }`}
           >
             عربي
           </button>
           <button
             type="button"
-            onClick={() => handleLocaleChange('en')}
+            onClick={() => handleLocaleChange("en")}
             className={`px-2 py-1 rounded-md transition-colors font-latin ${
-              locale === 'en'
-                ? 'bg-white text-green-950 font-bold shadow-2xs'
-                : 'text-ink-canvas hover:text-ink-900'
+              locale === "en"
+                ? "bg-white text-green-950 font-bold shadow-2xs"
+                : "text-ink-canvas hover:text-ink-900"
             }`}
           >
             EN
@@ -147,7 +154,7 @@ export const Topbar: React.FC<TopbarProps> = ({
             type="button"
             onClick={() => setIsNotificationsOpen((prev) => !prev)}
             className="relative p-2 text-ink-600 hover:text-ink-900 hover:bg-canvas rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
-            aria-label={t('notifications')}
+            aria-label={t("notifications")}
             aria-expanded={isNotificationsOpen}
           >
             <Bell size={20} weight="regular" />
@@ -164,10 +171,10 @@ export const Topbar: React.FC<TopbarProps> = ({
               />
               <div className="absolute end-0 mt-2 w-72 bg-white border border-border rounded-xl shadow-lg p-4 z-40 origin-top-right">
                 <div className="text-xs font-semibold text-ink-600 border-b border-border pb-2 mb-3">
-                  {t('notifications')}
+                  {t("notifications")}
                 </div>
                 <div className="py-6 text-center text-sm text-ink-600">
-                  {t('noNotifications')}
+                  {t("noNotifications")}
                 </div>
               </div>
             </>
@@ -180,18 +187,26 @@ export const Topbar: React.FC<TopbarProps> = ({
             type="button"
             onClick={() => setIsUserMenuOpen((prev) => !prev)}
             className="flex items-center gap-2.5 p-1 sm:pe-2 hover:bg-canvas rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-accent-500"
-            aria-label={t('userProfile')}
+            aria-label={t("userProfile")}
             aria-expanded={isUserMenuOpen}
           >
             <div className="w-8 h-8 rounded-full bg-green-700 text-white font-semibold text-xs flex items-center justify-center select-none shrink-0 shadow-2xs">
-              {locale === 'ar' ? 'مس' : 'MS'}
+              {locale === "ar" ? "مس" : "MS"}
             </div>
             <div className="hidden lg:flex flex-col text-start leading-none">
               <span className="text-xs font-bold text-ink-900 truncate">
-                {locale === 'ar' ? 'محمد السعدني' : 'Mohamed El Saadany'}
+                {user.name}
               </span>
               <span className="text-[11px] text-ink-600 mt-0.5">
-                {t('systemAdmin')}
+                {user.role === "admin"
+                  ? t("systemAdmin")
+                  : user.role === "auditor"
+                    ? locale === "ar"
+                      ? "مراجع"
+                      : "Auditor"
+                    : locale === "ar"
+                      ? "محاسب"
+                      : "Accountant"}
               </span>
             </div>
           </button>
@@ -205,11 +220,9 @@ export const Topbar: React.FC<TopbarProps> = ({
               />
               <div className="absolute end-0 mt-2 w-56 bg-white border border-border rounded-xl shadow-lg py-1.5 z-40 origin-top-right">
                 <div className="px-3.5 py-2 border-b border-border">
-                  <p className="text-xs font-bold text-ink-900">
-                    {locale === 'ar' ? 'محمد السعدني' : 'Mohamed El Saadany'}
-                  </p>
+                  <p className="text-xs font-bold text-ink-900">{user.name}</p>
                   <p className="text-[11px] text-ink-600 truncate mt-0.5">
-                    demo@mohasby.app
+                    {user.email}
                   </p>
                 </div>
 
@@ -218,24 +231,30 @@ export const Topbar: React.FC<TopbarProps> = ({
                     type="button"
                     onClick={() => {
                       setIsUserMenuOpen(false);
-                      alert(locale === 'ar' ? 'قيد الإعداد' : 'In progress');
+                      router.push(
+                        (locale === "ar" ? "" : "/en") +
+                          "/dashboard/setup/settings",
+                      );
                     }}
                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-ink-900 hover:bg-canvas transition-colors text-start"
                   >
                     <UserIcon size={16} className="text-ink-600" />
-                    <span>{t('userProfile')}</span>
+                    <span>{t("userProfile")}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => {
                       setIsUserMenuOpen(false);
-                      alert(locale === 'ar' ? 'قيد الإعداد' : 'In progress');
+                      router.push(
+                        (locale === "ar" ? "" : "/en") +
+                          "/dashboard/setup/settings",
+                      );
                     }}
                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-ink-900 hover:bg-canvas transition-colors text-start"
                   >
                     <Gear size={16} className="text-ink-600" />
-                    <span>{t('userSettings')}</span>
+                    <span>{t("userSettings")}</span>
                   </button>
                 </div>
 
@@ -246,7 +265,7 @@ export const Topbar: React.FC<TopbarProps> = ({
                     className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs text-danger hover:bg-danger/5 transition-colors text-start font-medium"
                   >
                     <SignOut size={16} className="text-danger" />
-                    <span>{t('signOut')}</span>
+                    <span>{t("signOut")}</span>
                   </button>
                 </div>
               </div>

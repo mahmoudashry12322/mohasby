@@ -34,3 +34,10 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
+
+# Private workbook input and local QA output
+/private-audit/
+*.xlsx
+/test-results/
+/playwright-report/
+/dev-db/

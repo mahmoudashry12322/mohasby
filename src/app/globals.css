@@ -121,3 +121,14 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   animation-play-state: paused;
 }
 
+
+@media print {
+  header, aside, nav, button { display: none !important; }
+  body, main { background: white !important; margin: 0 !important; padding: 0 !important; }
+  .overflow-x-auto { overflow: visible !important; }
+  table { font-size: 9px !important; }
+  th, td { padding: 4px !important; white-space: normal !important; }
+  tr { break-inside: avoid; }
+  thead { display: table-header-group; }
+  @page { size: A4 landscape; margin: 12mm; }
+}
