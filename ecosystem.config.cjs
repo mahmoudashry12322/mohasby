@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "mohasby",
       script: "node_modules/next/dist/bin/next",
-      args: "start -H 127.0.0.1 -p 3088",
+      args: "start -p 3088",
       cwd: __dirname,
       instances: 1,
       exec_mode: "fork",
