@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { execSync } from "node:child_process";
+import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
-import { chromium } from "@playwright/test";
+import { chromium, Page } from "@playwright/test";
 import {
   D,
   money,
@@ -16,9 +18,14 @@ import {
   parseFormula,
   evaluateFormula,
 } from "../src/lib/accounting/schedule-engine";
+import { hashPassword } from "../src/lib/auth/server";
 
-const BASE_URL = "https://mohasby.mahmoudashry.site";
-const QA_PASSWORD = "QaTestPassword1234!";
+const BASE_URL = process.env.BASE_URL || "https://mohasby.mahmoudashry.site";
+
+// Generate cryptographically random secure password per test run if not supplied via env
+const QA_PASSWORD =
+  process.env.QA_PASSWORD ||
+  crypto.randomBytes(24).toString("base64url") + "Aa1!";
 
 const prisma = new PrismaClient();
 
@@ -28,7 +35,7 @@ export interface TestReportResult {
   input: string;
   expected: string;
   actual: string;
-  status: "PASS" | "FAIL";
+  status: "PASS" | "FAIL" | "NOT_TESTED";
   evidence: string;
 }
 
@@ -40,11 +47,15 @@ function record(
   input: string,
   expected: string,
   actual: string,
-  status: "PASS" | "FAIL",
+  status: "PASS" | "FAIL" | "NOT_TESTED",
   evidence: string,
 ) {
   results.push({ section, test, input, expected, actual, status, evidence });
-  console.log(`[${status}] ${section} > ${test}`);
+  if (status === "FAIL") {
+    console.error(`[FAIL] ${section} > ${test} | Expected: ${expected} | Actual: ${actual}`);
+  } else {
+    console.log(`[${status}] ${section} > ${test}`);
+  }
 }
 
 async function fetchApi(
@@ -85,37 +96,110 @@ async function loginApi(email: string, password = QA_PASSWORD) {
   return { res, cookie };
 }
 
+function getRequiredAccount(trialReport: any, code: string, name: string) {
+  assert.ok(
+    trialReport?.data?.rows && Array.isArray(trialReport.data.rows),
+    `Trial balance report must return rows array`,
+  );
+  const acc = trialReport.data.rows.find((r: any) => r.code === code);
+  assert.ok(
+    acc !== undefined,
+    `Account ${code} (${name}) must exist in trial balance report rows`,
+  );
+  return acc;
+}
+
+function getRequiredStockBalance(stockReport: any, itemId: string) {
+  assert.ok(
+    stockReport?.data?.balances && Array.isArray(stockReport.data.balances),
+    `Stock report must return balances array`,
+  );
+  const bal = stockReport.data.balances.find((b: any) => b.itemId === itemId);
+  assert.ok(
+    bal !== undefined,
+    `Item ${itemId} must exist in stock report balances`,
+  );
+  return bal;
+}
+
 async function main() {
   console.log("=== STARTING MOHASBY SYSTEM ACCEPTANCE TEST SUITE ===");
   const startTime = Date.now();
 
-  // Find QA Company
-  const qaCompany = await prisma.company.findFirstOrThrow({
-    where: { name: "شركة اختبار الجودة QA (شركة مستقلة)" },
+  // Create a BRAND NEW isolated test company for this test run (never wipe previous companies)
+  const runTimestamp = Date.now();
+  const companyName = `شركة اختبار الجودة QA (تشغيل ${runTimestamp})`;
+  const qaCompany = await prisma.company.create({
+    data: {
+      name: companyName,
+      currency: "EGP",
+      isDefault: false,
+    },
   });
-  console.log(`Using QA Company ID: ${qaCompany.id}`);
+  console.log(`Created NEW isolated test company: "${companyName}" (ID: ${qaCompany.id})`);
 
-  // Clean slate for QA Company before testing
-  await prisma.auditLog.deleteMany({ where: { companyId: qaCompany.id } });
-  await prisma.inventoryClose.deleteMany({
-    where: { companyId: qaCompany.id },
+  // Clone 111 standard accounts from Company 1 to qaCompany
+  const c1Accounts = await prisma.account.findMany({
+    where: { companyId: 1 },
+    orderBy: { level: "asc" },
   });
-  await prisma.stockMovement.deleteMany({ where: { companyId: qaCompany.id } });
-  await prisma.journalEntry.updateMany({
-    where: { companyId: qaCompany.id },
-    data: { status: "DRAFT" },
+  for (const acc of c1Accounts) {
+    await prisma.account.create({
+      data: {
+        companyId: qaCompany.id,
+        code: acc.code,
+        name: acc.name,
+        nameEn: acc.nameEn,
+        accountClass: acc.accountClass,
+        mainGroup: acc.mainGroup,
+        subGroup: acc.subGroup,
+        nature: acc.nature,
+        statementType: acc.statementType,
+        level: acc.level,
+        parentCode: acc.parentCode,
+        isGroup: acc.isGroup,
+        isSystem: acc.isSystem,
+        cashFlow: acc.cashFlow,
+      },
+    });
+  }
+  console.log(`Cloned ${c1Accounts.length} standard accounts to test company ${qaCompany.id}`);
+
+  // Create fresh QA Users with random runtime password
+  const adminEmail = `qa-admin-${runTimestamp}@example.test`;
+  const accountantEmail = `qa-accountant-${runTimestamp}@example.test`;
+  const auditorEmail = `qa-auditor-${runTimestamp}@example.test`;
+  const passwordHash = hashPassword(QA_PASSWORD);
+
+  await prisma.user.create({
+    data: {
+      companyId: qaCompany.id,
+      email: adminEmail,
+      name: `مدير اختبار QA (${runTimestamp})`,
+      passwordHash,
+      role: "admin",
+      isActive: true,
+    },
   });
-  await prisma.journalLine.deleteMany({ where: { companyId: qaCompany.id } });
-  await prisma.journalEntry.deleteMany({ where: { companyId: qaCompany.id } });
-  await prisma.fiscalPeriod.deleteMany({ where: { companyId: qaCompany.id } });
-  await prisma.register.deleteMany({ where: { companyId: qaCompany.id } });
-  await prisma.account.updateMany({
-    where: { companyId: qaCompany.id },
-    data: { balance: 0 },
+  await prisma.user.create({
+    data: {
+      companyId: qaCompany.id,
+      email: accountantEmail,
+      name: `محاسب اختبار QA (${runTimestamp})`,
+      passwordHash,
+      role: "accountant",
+      isActive: true,
+    },
   });
-  await prisma.company.update({
-    where: { id: qaCompany.id },
-    data: { closedThrough: null },
+  await prisma.user.create({
+    data: {
+      companyId: qaCompany.id,
+      email: auditorEmail,
+      name: `مراجع اختبار QA (${runTimestamp})`,
+      passwordHash,
+      role: "auditor",
+      isActive: true,
+    },
   });
 
   // ─────────────────────────────────────────────────────────
@@ -162,15 +246,28 @@ async function main() {
     `Location header: ${directUnauth.headers.get("location")}`,
   );
 
-  // 1.3 Port 3088 external exposure check
+  // 1.3 Port 3088 Listening and Firewall Inspection
+  let ssOutput = "";
+  let ufwOutput = "";
+  try {
+    ssOutput = execSync("ss -tulpn | grep 3088", { encoding: "utf8" }).trim();
+    ufwOutput = execSync("ufw status verbose", { encoding: "utf8" }).trim();
+  } catch (e) {
+    ssOutput = (e as Error).message;
+  }
+  const bindsAll = ssOutput.includes("*:3088") || ssOutput.includes("0.0.0.0:3088");
+  const ufwActive = ufwOutput.includes("Status: active");
+  const ufwDenyIncoming = ufwOutput.includes("deny (incoming)");
+  const port3088NotAllowed = !ufwOutput.includes("3088");
+
   record(
     "Nginx & Network",
-    "Direct port 3088 external block",
-    "Network inspection of port 3088",
-    "Port 3088 blocked by UFW firewall (default DENY incoming)",
-    "Port 3088 not externally accessible; only 22, 80, 443 open",
-    "PASS",
-    "UFW firewall configuration: Status active, port 3088 has no allow rule",
+    "Port 3088 socket binding and firewall inspection",
+    "ss -tulpn | grep 3088 && ufw status verbose",
+    "Socket listens locally; UFW default deny incoming; Port 3088 not allowed externally",
+    `Socket: ${bindsAll ? "*:3088" : "other"}, UFW: ${ufwActive ? "Active" : "Inactive"}, Policy: ${ufwDenyIncoming ? "Deny In" : "Other"}, Port 3088 in rules: ${port3088NotAllowed ? "None (Blocked)" : "Allowed"}`,
+    bindsAll && ufwActive && ufwDenyIncoming && port3088NotAllowed ? "PASS" : "FAIL",
+    `Socket bound to *:3088; UFW default drop incoming without allow rule for 3088. External inbound probe from outside the server cannot be executed from inside VM; verified strictly via iptables/ufw drop rules.`,
   );
 
   // ─────────────────────────────────────────────────────────
@@ -179,7 +276,7 @@ async function main() {
   console.log("\n--- Section 2: Auth, Roles, CSRF, Company Scoping ---");
 
   // 2.1 Bad credentials rejection
-  const badLogin = await loginApi("qa-admin@example.test", "WrongPassword999!");
+  const badLogin = await loginApi(adminEmail, "WrongPassword999!");
   record(
     "Auth & Roles",
     "Reject invalid password",
@@ -204,12 +301,12 @@ async function main() {
 
   // 2.3 Forged/tampered cookie rejection
   const forgedApi = await fetchApi("/api/accounts", {
-    cookie: "mohasby_session=tampered-invalid-jwt-token-xyz123",
+    cookie: "mohasby_session=tamperedinvalidtoken1234567890abcdef1234567890abcdef1234567890abcdef",
   });
   record(
     "Auth & Roles",
-    "Reject forged JWT cookie",
-    "GET /api/accounts with tampered session cookie",
+    "Reject forged token session cookie",
+    "GET /api/accounts with non-existent token hash",
     "HTTP 401: تسجيل الدخول مطلوب",
     `HTTP ${forgedApi.status}: ${forgedApi.data?.error || ""}`,
     forgedApi.status === 401 ? "PASS" : "FAIL",
@@ -217,11 +314,9 @@ async function main() {
   );
 
   // 2.4 Login with QA Admin, Accountant, Auditor
-  const { cookie: adminCookie } = await loginApi("qa-admin@example.test");
-  const { cookie: accountantCookie } = await loginApi(
-    "qa-accountant@example.test",
-  );
-  const { cookie: auditorCookie } = await loginApi("qa-auditor@example.test");
+  const { cookie: adminCookie } = await loginApi(adminEmail);
+  const { cookie: accountantCookie } = await loginApi(accountantEmail);
+  const { cookie: auditorCookie } = await loginApi(auditorEmail);
   assert.ok(adminCookie, "Admin cookie must exist");
   assert.ok(accountantCookie, "Accountant cookie must exist");
   assert.ok(auditorCookie, "Auditor cookie must exist");
@@ -290,16 +385,16 @@ async function main() {
   const scopedAccounts = await fetchApi("/api/accounts?companyId=1", {
     cookie: adminCookie,
   });
-  const allAccountsAreCompany2 = (scopedAccounts.data?.accounts || []).every(
-    (a: any) => a.companyId === qaCompany.id,
-  );
+  const allAccountsAreTargetCompany = (
+    scopedAccounts.data?.accounts || []
+  ).every((a: any) => a.companyId === qaCompany.id);
   record(
     "Multi-tenancy",
     "Company scoping: enforce session company",
-    "GET /api/accounts?companyId=1 with QA Admin (Company 2)",
+    `GET /api/accounts?companyId=1 with QA Admin (Company ${qaCompany.id})`,
     `Accounts scoped only to Company ${qaCompany.id}`,
     `Returned ${scopedAccounts.data?.accounts?.length} accounts, all in companyId=${qaCompany.id}`,
-    allAccountsAreCompany2 ? "PASS" : "FAIL",
+    allAccountsAreTargetCompany ? "PASS" : "FAIL",
     `companyId override ignored; user company strictly enforced`,
   );
 
@@ -336,7 +431,6 @@ async function main() {
   );
 
   // 3.2 Inactive / Group Header Account rejection
-  // In standard chart, account "12" is a parent group header (الأصول المتداولة)
   const headerAccountAttempt = await fetchApi("/api/journal", {
     method: "POST",
     cookie: adminCookie,
@@ -384,21 +478,19 @@ async function main() {
   const draftEntryId = draftRes.data.entry.id;
   const draftEntryNumber = draftRes.data.entry.number;
 
-  // Verify Trial Balance: 120101 must remain 0.00
+  // Verify Trial Balance: 120101 must remain exactly 0.00
   const trialBeforePost = await fetchApi(
     "/api/reports/trial-balance?from=2026-01-01&to=2026-01-31",
     { cookie: adminCookie },
   );
-  const acc120101Before = (trialBeforePost.data?.rows || []).find(
-    (a: any) => a.code === "120101",
-  );
+  const acc120101Before = getRequiredAccount(trialBeforePost, "120101", "الخزينة الرئيسية");
   record(
     "Journal Entries",
     "Draft does not alter financial balances",
     `Entry #${draftEntryNumber} created as DRAFT`,
     "Balance for 120101 = 0.00",
-    `Balance for 120101 = ${acc120101Before?.balance || "0.00"}`,
-    (acc120101Before?.balance || "0.00") === "0.00" ? "PASS" : "FAIL",
+    `Balance for 120101 = ${acc120101Before.balance}`,
+    acc120101Before.balance === "0.00" ? "PASS" : "FAIL",
     `Draft ID: ${draftEntryId}`,
   );
 
@@ -466,19 +558,15 @@ async function main() {
     "/api/reports/trial-balance?from=2026-01-01&to=2026-01-31",
     { cookie: adminCookie },
   );
-  const acc120101After = (trialAfterPost.data?.rows || []).find(
-    (a: any) => a.code === "120101",
-  );
-  const acc31After = (trialAfterPost.data?.rows || []).find(
-    (a: any) => a.code === "31",
-  );
+  const acc120101After = getRequiredAccount(trialAfterPost, "120101", "الخزينة الرئيسية");
+  const acc31After = getRequiredAccount(trialAfterPost, "31", "رأس المال");
   record(
     "Journal Entries",
     "Posted entry reflects in Trial Balance",
     `Entry #${draftEntryNumber} posted`,
     "120101 = 750.00 Dr, 31 = -750.00 Cr",
-    `120101 = ${acc120101After?.balance}, 31 = ${acc31After?.balance}`,
-    acc120101After?.balance === "750.00" && acc31After?.balance === "-750.00"
+    `120101 = ${acc120101After.balance}, 31 = ${acc31After.balance}`,
+    acc120101After.balance === "750.00" && acc31After.balance === "-750.00"
       ? "PASS"
       : "FAIL",
     `Trial balance reflect posted movement: Dr 750.00 = Cr 750.00`,
@@ -503,16 +591,14 @@ async function main() {
     "/api/reports/trial-balance?from=2026-01-01&to=2026-01-31",
     { cookie: adminCookie },
   );
-  const acc120101Reversed = (trialAfterReverse.data?.rows || []).find(
-    (a: any) => a.code === "120101",
-  );
+  const acc120101Reversed = getRequiredAccount(trialAfterReverse, "120101", "الخزينة الرئيسية");
   record(
     "Journal Entries",
     "Reversal zeroes net balance & preserves audit trail",
     `Reversal Entry #${reversalEntryNumber} created`,
     "Net Balance 120101 = 0.00",
-    `Net Balance 120101 = ${acc120101Reversed?.balance || "0.00"}`,
-    (acc120101Reversed?.balance || "0.00") === "0.00" ? "PASS" : "FAIL",
+    `Net Balance 120101 = ${acc120101Reversed.balance}`,
+    acc120101Reversed.balance === "0.00" ? "PASS" : "FAIL",
     `Original #${draftEntryNumber} and Reversal #${reversalEntryNumber} both preserved`,
   );
 
@@ -523,8 +609,7 @@ async function main() {
     "\n--- Section 4: Inventory & Periodic Accounting Cycle (Detailed Scenario) ---",
   );
 
-  // Setup: Master Registers
-  // Warehouse
+  // Master Registers
   const whRes = await fetchApi("/api/registers/warehouses", {
     method: "POST",
     cookie: adminCookie,
@@ -537,7 +622,6 @@ async function main() {
   });
   assert.ok([200, 409].includes(whRes.status), "Warehouse creation");
 
-  // Supplier
   const suppRes = await fetchApi("/api/registers/parties", {
     method: "POST",
     cookie: adminCookie,
@@ -550,7 +634,6 @@ async function main() {
   });
   assert.ok([200, 409].includes(suppRes.status), "Supplier creation");
 
-  // Customer
   const custRes = await fetchApi("/api/registers/parties", {
     method: "POST",
     cookie: adminCookie,
@@ -563,7 +646,6 @@ async function main() {
   });
   assert.ok([200, 409].includes(custRes.status), "Customer creation");
 
-  // Item
   const itemRes = await fetchApi("/api/registers/items", {
     method: "POST",
     cookie: adminCookie,
@@ -590,7 +672,6 @@ async function main() {
       })
     ).id;
 
-  // Fiscal Period: Jan 2026
   const periodRes = await fetchApi("/api/settings", {
     method: "POST",
     cookie: adminCookie,
@@ -604,10 +685,7 @@ async function main() {
   });
   assert.ok([200, 409].includes(periodRes.status), "Fiscal period creation");
 
-  // A) رصيد افتتاحي:
-  // 100 وحدة × 10 = 1,000 ج.م
-  // قيد افتتاحي مدين مخزون 1,000 (120401) مقابل دائن رأس مال 1,000 (31)
-  // يتم تسجيله من خلال واجهة/API المخزون الرسمية المعتمدة دون تدخل مباشر في DB:
+  // A) رصيد افتتاحي عبر واجهة وحركة المخزون الرسمية المعتمدة
   const stockOpeningRes = await fetchApi("/api/stock", {
     method: "POST",
     cookie: adminCookie,
@@ -641,8 +719,7 @@ async function main() {
     "Standard system flow records opening stock card & balanced journal entry without double financial effect",
   );
 
-  // B) شراء آجل:
-  // 100 وحدة × 20 = 2,000 ج.م على مورد تجريبي SUPP_QA
+  // B) شراء آجل: 100 وحدة × 20 = 2,000 ج.م على SUPP_QA (210101)
   const purchaseDoc = await fetchApi("/api/documents", {
     method: "POST",
     cookie: adminCookie,
@@ -666,8 +743,7 @@ async function main() {
     "Purchase doc creation: " + JSON.stringify(purchaseDoc.data),
   );
 
-  // C) بيع نقدي:
-  // 50 وحدة × 30 = 1,500 ج.م نقداً (120101)
+  // C) بيع نقدي: 50 وحدة × 30 = 1,500 ج.م نقداً (120101)
   const saleDoc = await fetchApi("/api/documents", {
     method: "POST",
     cookie: adminCookie,
@@ -692,24 +768,19 @@ async function main() {
   );
 
   // D) التحقق قبل الإقفال:
-  // المتاح: 150 وحدة
-  // المتوسط الدوري = (1000 + 2000) / (100 + 100) = 15.000000
-  // قيمة المخزون المحسوبة = 150 × 15 = 2,250
   const stockBeforeClose = await fetchApi("/api/stock", {
     cookie: adminCookie,
   });
-  const itemBalBefore = (stockBeforeClose.data?.balances || []).find(
-    (b: any) => b.itemId === itemId,
-  );
+  const itemBalBefore = getRequiredStockBalance(stockBeforeClose, itemId);
   record(
     "Accounting Cycle",
     "Pre-close Stock State",
     "Opening 100@10 + Purchase 100@20 - Sale 50",
-    "Qty: 150, WAC: 15.000000, Value: 2250.00",
-    `Qty: ${itemBalBefore?.quantity}, WAC: ${itemBalBefore?.averageCost}, Value: ${itemBalBefore?.value}`,
-    itemBalBefore?.quantity === "150.000" &&
-      itemBalBefore?.averageCost === "15.000000" &&
-      itemBalBefore?.value === "2250.00"
+    "Qty: 150.000, WAC: 15.000000, Value: 2250.00",
+    `Qty: ${itemBalBefore.quantity}, WAC: ${itemBalBefore.averageCost}, Value: ${itemBalBefore.value}`,
+    itemBalBefore.quantity === "150.000" &&
+      itemBalBefore.averageCost === "15.000000" &&
+      itemBalBefore.value === "2250.00"
       ? "PASS"
       : "FAIL",
     JSON.stringify(itemBalBefore),
@@ -737,19 +808,14 @@ async function main() {
     "/api/reports/trial-balance?from=2026-01-01&to=2026-01-31",
     { cookie: adminCookie },
   );
-  const accountsMap = new Map(
-    (tbAfterClose.data?.rows || []).map((a: any) => [a.code, a.balance]),
-  );
+  const bookStock = getRequiredAccount(tbAfterClose, "120401", "مخزون بضاعة تامة الصنع").balance;
+  const cashBal = getRequiredAccount(tbAfterClose, "120101", "الخزينة الرئيسية").balance;
+  const suppBal = getRequiredAccount(tbAfterClose, "210101", "موردون محليون").balance;
+  const capBal = getRequiredAccount(tbAfterClose, "31", "رأس المال").balance;
+  const salesBal = getRequiredAccount(tbAfterClose, "4101", "إيراد المبيعات").balance;
+  const purchBal = getRequiredAccount(tbAfterClose, "5101", "المشتريات").balance;
+  const invChangeBal = getRequiredAccount(tbAfterClose, "5106", "تغير مخزون آخر الفترة").balance;
 
-  const bookStock = accountsMap.get("120401"); // 2,250.00
-  const cashBal = accountsMap.get("120101"); // 1,500.00
-  const suppBal = accountsMap.get("210101"); // -2,000.00
-  const capBal = accountsMap.get("31"); // -1,000.00
-  const salesBal = accountsMap.get("4101"); // -1,500.00
-  const purchBal = accountsMap.get("5101"); // 2,000.00
-  const invChangeBal = accountsMap.get("5106"); // -1,250.00
-
-  // Financial statements check
   const finRes = await fetchApi(
     "/api/reports/financial?from=2026-01-01&to=2026-01-31",
     { cookie: adminCookie },
@@ -765,6 +831,10 @@ async function main() {
     bookStock === "2250.00" &&
       cashBal === "1500.00" &&
       suppBal === "-2000.00" &&
+      capBal === "-1000.00" &&
+      salesBal === "-1500.00" &&
+      purchBal === "2000.00" &&
+      invChangeBal === "-1250.00" &&
       bs?.difference === "0.00" &&
       bs?.assets === "3750.00" &&
       bs?.liabilities === "2000.00" &&
@@ -774,9 +844,7 @@ async function main() {
     `Full balance sheet equation verified: Assets (3750.00) = Liab (2000.00) + Capital (1000.00) + Unclosed Profit (750.00)`,
   );
 
-  // F) الفترة التالية:
-  // شراء 50 وحدة × 25 = 1,250 ج.م في 2026-02-05
-  // المتوقع: كمية 200، قيمة 3,500، متوسط 17.5
+  // F) الفترة التالية: شراء 50 وحدة × 25 = 1,250 ج.م في 2026-02-05
   const nextPeriodPurch = await fetchApi("/api/documents", {
     method: "POST",
     cookie: adminCookie,
@@ -799,28 +867,36 @@ async function main() {
   const febStock = await fetchApi("/api/stock?to=2026-02-28", {
     cookie: adminCookie,
   });
-  const febItemBal = (febStock.data?.balances || []).find(
-    (b: any) => b.itemId === itemId,
+  const febItemBal = getRequiredStockBalance(febStock, itemId);
+
+  // Verify that account 120401 book ledger balance is still 2250.00 before February close,
+  // while calculated stock valuation from WAC is 3500.00
+  const febTrial = await fetchApi(
+    "/api/reports/trial-balance?from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
   );
+  const bookStockFebBeforeClose = getRequiredAccount(febTrial, "120401", "مخزون بضاعة تامة الصنع").balance;
+
   record(
     "Accounting Cycle",
     "Next Period Carryforward & New Average Cost",
     "Purchase 50@25 after Jan close (carryforward 150@15=2250)",
-    "Qty: 200, Value: 3500.00, WAC: 17.500000",
-    `Qty: ${febItemBal?.quantity}, Value: ${febItemBal?.value}, WAC: ${febItemBal?.averageCost}`,
-    febItemBal?.quantity === "200.000" &&
-      febItemBal?.value === "3500.00" &&
-      febItemBal?.averageCost === "17.500000"
+    "Qty: 200.000, Calculated Value: 3500.00, WAC: 17.500000, Book Ledger 120401: 2250.00",
+    `Qty: ${febItemBal.quantity}, Value: ${febItemBal.value}, WAC: ${febItemBal.averageCost}, Book: ${bookStockFebBeforeClose}`,
+    febItemBal.quantity === "200.000" &&
+      febItemBal.value === "3500.00" &&
+      febItemBal.averageCost === "17.500000" &&
+      bookStockFebBeforeClose === "2250.00"
       ? "PASS"
       : "FAIL",
-    JSON.stringify(febItemBal),
+    `Distinguished periodic calculated stock value (3500.00) from ledger book balance (2250.00) before period close`,
   );
 
   // ─────────────────────────────────────────────────────────
-  // SECTION 5: SPECIAL STOCK CASES & DOCUMENT LOGIC
+  // SECTION 5: SPECIAL STOCK CASES WITH STRICT BEFORE/AFTER VALIDATION
   // ─────────────────────────────────────────────────────────
   console.log(
-    "\n--- Section 5: Stock Overdraw, Waste, Returns, Closed Period Lock ---",
+    "\n--- Section 5: Stock Overdraw, Returns, Waste, Count, Closed Period Lock ---",
   );
 
   // 5.1 Reject Overdraw (trying to issue 250 when available is 200)
@@ -843,7 +919,7 @@ async function main() {
   });
   record(
     "Special Stock Cases",
-    "Reject issue exceeding available stock",
+    "[API مباشر] Reject issue exceeding available stock",
     "Issue 250 kg when balance is 200 kg",
     "HTTP 409: رصيد غير كافٍ / كمية سالبة",
     `HTTP ${overdrawRes.status}: ${overdrawRes.data?.error || ""}`,
@@ -871,7 +947,7 @@ async function main() {
   });
   record(
     "Special Stock Cases",
-    "Reject entry in closed fiscal period",
+    "[API مباشر] Reject entry in closed fiscal period",
     "Date: 2026-01-20 in closed period",
     "HTTP 409: الفترة المالية مقفلة",
     `HTTP ${closedPeriodEntry.status}: ${closedPeriodEntry.data?.error || ""}`,
@@ -879,7 +955,18 @@ async function main() {
     JSON.stringify(closedPeriodEntry.data),
   );
 
-  // 5.3 Purchase Return (مرتجع شراء): 10 units @ 25
+  // 5.3 Purchase Return (مرتجع مشتريات) with strict Before/After delta assertion
+  const stockBeforePR = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
+  const trialBeforePR = await fetchApi(
+    "/api/reports/trial-balance?from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  const suppBalBeforePR = getRequiredAccount(trialBeforePR, "210101", "موردون محليون").balance;
+  const purchBalBeforePR = getRequiredAccount(trialBeforePR, "5101", "المشتريات").balance;
+
   const purchReturnRes = await fetchApi("/api/documents", {
     method: "POST",
     cookie: adminCookie,
@@ -897,17 +984,47 @@ async function main() {
       requestKey: "qa-purch-return-1",
     }),
   });
+  assert.equal(purchReturnRes.status, 200, "Purchase return response must be 200");
+
+  const stockAfterPR = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
+  const trialAfterPR = await fetchApi(
+    "/api/reports/trial-balance?from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  const suppBalAfterPR = getRequiredAccount(trialAfterPR, "210101", "موردون محليون").balance;
+  const purchBalAfterPR = getRequiredAccount(trialAfterPR, "5101", "المشتريات").balance;
+
+  const prQtyDelta = D(stockAfterPR.quantity).sub(D(stockBeforePR.quantity)).toFixed(3);
+  const prSuppDelta = D(suppBalAfterPR).sub(D(suppBalBeforePR)).toFixed(2);
+  const prPurchDelta = D(purchBalAfterPR).sub(D(purchBalBeforePR)).toFixed(2);
+
   record(
     "Special Stock Cases",
-    "Purchase Return document & stock reduction",
-    "Return 10 kg @ 25 to SUPP_QA",
-    "HTTP 200, reduces stock & debits supplier",
-    `HTTP ${purchReturnRes.status}`,
-    purchReturnRes.status === 200 ? "PASS" : "FAIL",
-    JSON.stringify(purchReturnRes.data),
+    "[API مباشر] Purchase Return with strict before/after balances check",
+    "Return 10 kg @ 25 EGP to SUPP_QA",
+    "Qty delta: -10.000, Supplier debt delta: +250.00 (debit reduction), Purchases delta: -250.00",
+    `Qty delta: ${prQtyDelta} (now ${stockAfterPR.quantity}), Supp delta: ${prSuppDelta} (now ${suppBalAfterPR}), Purch delta: ${prPurchDelta} (now ${purchBalAfterPR})`,
+    prQtyDelta === "-10.000" && prSuppDelta === "250.00" && prPurchDelta === "-250.00"
+      ? "PASS"
+      : "FAIL",
+    `Strict delta validated on both stock card and general ledger`,
   );
 
-  // 5.4 Sale Return (مرتجع مبيعات): 5 units @ 30
+  // 5.4 Sale Return (مرتجع مبيعات) with strict Before/After delta assertion
+  const stockBeforeSR = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
+  const trialBeforeSR = await fetchApi(
+    "/api/reports/trial-balance?from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  const cashBalBeforeSR = getRequiredAccount(trialBeforeSR, "120101", "الخزينة الرئيسية").balance;
+  const salesBalBeforeSR = getRequiredAccount(trialBeforeSR, "4101", "إيراد المبيعات").balance;
+
   const saleReturnRes = await fetchApi("/api/documents", {
     method: "POST",
     cookie: adminCookie,
@@ -925,17 +1042,40 @@ async function main() {
       requestKey: "qa-sale-return-1",
     }),
   });
+  assert.equal(saleReturnRes.status, 200, "Sale return response must be 200");
+
+  const stockAfterSR = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
+  const trialAfterSR = await fetchApi(
+    "/api/reports/trial-balance?from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  const cashBalAfterSR = getRequiredAccount(trialAfterSR, "120101", "الخزينة الرئيسية").balance;
+  const salesBalAfterSR = getRequiredAccount(trialAfterSR, "4101", "إيراد المبيعات").balance;
+
+  const srQtyDelta = D(stockAfterSR.quantity).sub(D(stockBeforeSR.quantity)).toFixed(3);
+  const srCashDelta = D(cashBalAfterSR).sub(D(cashBalBeforeSR)).toFixed(2);
+  const srSalesDelta = D(salesBalAfterSR).sub(D(salesBalBeforeSR)).toFixed(2);
+
   record(
     "Special Stock Cases",
-    "Sale Return document & stock increment",
-    "Return 5 kg @ 30 from CUST_QA",
-    "HTTP 200, increments stock & credits cash",
-    `HTTP ${saleReturnRes.status}`,
-    saleReturnRes.status === 200 ? "PASS" : "FAIL",
-    JSON.stringify(saleReturnRes.data),
+    "[API مباشر] Sale Return with strict before/after balances check",
+    "Return 5 kg @ 30 EGP from CUST_QA",
+    "Qty delta: +5.000, Cash delta: -150.00, Sales delta: +150.00",
+    `Qty delta: ${srQtyDelta} (now ${stockAfterSR.quantity}), Cash delta: ${srCashDelta} (now ${cashBalAfterSR}), Sales delta: ${srSalesDelta} (now ${salesBalAfterSR})`,
+    srQtyDelta === "5.000" && srCashDelta === "-150.00" && srSalesDelta === "150.00"
+      ? "PASS"
+      : "FAIL",
+    `Strict delta validated on cash balance, sales account and stock card`,
   );
 
-  // 5.5 Waste movement (هالك)
+  // 5.5 Waste movement (هالك) with strict Before/After check
+  const stockBeforeWaste = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
   const wasteRes = await fetchApi("/api/stock", {
     method: "POST",
     cookie: adminCookie,
@@ -950,17 +1090,28 @@ async function main() {
       requestKey: "qa-waste-movement-1",
     }),
   });
+  assert.equal(wasteRes.status, 201, "Waste movement creation must be 201");
+  const stockAfterWaste = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
+  const wasteQtyDelta = D(stockAfterWaste.quantity).sub(D(stockBeforeWaste.quantity)).toFixed(3);
+
   record(
     "Special Stock Cases",
-    "Waste stock movement (WASTE)",
+    "[API مباشر] Waste stock movement with before/after quantity check",
     "Issue 5 kg as waste",
-    "HTTP 201, reduces stock quantity",
-    `HTTP ${wasteRes.status}`,
-    wasteRes.status === 201 ? "PASS" : "FAIL",
-    JSON.stringify(wasteRes.data),
+    "Qty delta: -5.000",
+    `Qty delta: ${wasteQtyDelta} (from ${stockBeforeWaste.quantity} to ${stockAfterWaste.quantity})`,
+    wasteQtyDelta === "-5.000" ? "PASS" : "FAIL",
+    `Waste properly reflected in inventory balance`,
   );
 
-  // 5.6 Inventory Count Gain (زيادة جرد)
+  // 5.6 Inventory Count Gain (زيادة جرد) with strict Before/After check
+  const stockBeforeCount = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
   const countGainRes = await fetchApi("/api/stock", {
     method: "POST",
     cookie: adminCookie,
@@ -975,14 +1126,21 @@ async function main() {
       requestKey: "qa-count-gain-1",
     }),
   });
+  assert.equal(countGainRes.status, 201, "Count gain creation must be 201");
+  const stockAfterCount = getRequiredStockBalance(
+    await fetchApi("/api/stock?to=2026-02-28", { cookie: adminCookie }),
+    itemId,
+  );
+  const countQtyDelta = D(stockAfterCount.quantity).sub(D(stockBeforeCount.quantity)).toFixed(3);
+
   record(
     "Special Stock Cases",
-    "Inventory Count Adjustment (COUNT_GAIN)",
+    "[API مباشر] Inventory Count Adjustment (COUNT_GAIN) with before/after check",
     "Add 2 kg count surplus",
-    "HTTP 201, increments stock quantity",
-    `HTTP ${countGainRes.status}`,
-    countGainRes.status === 201 ? "PASS" : "FAIL",
-    JSON.stringify(countGainRes.data),
+    "Qty delta: +2.000",
+    `Qty delta: ${countQtyDelta} (from ${stockBeforeCount.quantity} to ${stockAfterCount.quantity})`,
+    countQtyDelta === "2.000" ? "PASS" : "FAIL",
+    `Inventory count surplus properly adjusted`,
   );
 
   // 5.7 Weigh Ticket Calculation
@@ -999,7 +1157,7 @@ async function main() {
   const expectedAmount = "76839.84";
   record(
     "Special Stock Cases",
-    "Weigh Ticket & Deductions Formula Verification",
+    "[API مباشر] Weigh Ticket & Deductions Formula Verification",
     JSON.stringify(weighInput),
     `Net: 9604.98 kg, Amount: ${expectedAmount} EGP`,
     `Net: ${weighCalc.net.toFixed(2)} kg, Amount: ${weighCalc.amount.toFixed(2)} EGP`,
@@ -1008,13 +1166,355 @@ async function main() {
   );
 
   // ─────────────────────────────────────────────────────────
-  // SECTION 6: COSTS ENGINES & FORMULA CALCULATION
+  // SECTION 6A: REAL COST TRANSACTIONS & API / WEB INTEGRATION
   // ─────────────────────────────────────────────────────────
   console.log(
-    "\n--- Section 6: Cost Engines (All 5 Activities, Depreciation, Partners) ---",
+    "\n--- Section 6A: Actual Cost Centers, Transactions, and API Reports ---",
   );
 
-  // 6.1 Activity 1: MANUFACTURING
+  // Register 5 actual cost centers
+  const costCenterDefs = [
+    { code: "CC_MFG", name: "مركز تصنيع تجريبي", data: { type: "MANUFACTURING" } },
+    { code: "CC_ANIMAL", name: "مركز إنتاج حيواني تجريبي", data: { type: "ANIMAL" } },
+    { code: "CC_FARMING", name: "مركز زراعي تجريبي", data: { type: "FARMING", farm: "F1", pivot: "P1", season: "S1" } },
+    { code: "CC_EXPORT", name: "مركز تصدير تجريبي", data: { type: "EXPORT" } },
+    { code: "CC_IMPORT", name: "مركز استيراد تجريبي", data: { type: "IMPORT" } },
+  ];
+
+  for (const c of costCenterDefs) {
+    const res = await fetchApi("/api/registers/cost-centers", {
+      method: "POST",
+      cookie: adminCookie,
+      headers: { origin: BASE_URL },
+      body: JSON.stringify(c),
+    });
+    assert.ok([200, 409].includes(res.status), `Cost center ${c.code} registration`);
+  }
+
+  // Create and post real journal entries tagged with cost center and cost items
+  const mfgEntry = await fetchApi("/api/journal", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      date: "2026-02-15",
+      description: "تكاليف خامات وأجور تصنيع فعلية",
+      requestKey: "qa-cost-mfg-entry-1",
+      lines: [
+        {
+          accountCode: "5101",
+          debit: "1000",
+          costCenter: "CC_MFG",
+          costItem: templates.MANUFACTURING.labels.B8,
+        },
+        {
+          accountCode: "5101",
+          debit: "500",
+          costCenter: "CC_MFG",
+          costItem: templates.MANUFACTURING.labels.B13,
+        },
+        { accountCode: "120101", credit: "1500" },
+      ],
+    }),
+  });
+  assert.equal(mfgEntry.status, 201, "MFG cost entry");
+  await fetchApi(`/api/journal/${mfgEntry.data.entry.id}`, {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({ action: "post" }),
+  });
+
+  // Submit inputs for MFG cost schedule
+  await fetchApi("/api/costs/MANUFACTURING", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      center: "CC_MFG",
+      from: "2026-01-01",
+      to: "2026-02-28",
+      inputs: { C32: "100", C34: "0.2" },
+    }),
+  });
+
+  // Fetch actual MFG schedule report from API
+  const liveMfgReport = await fetchApi(
+    "/api/costs/MANUFACTURING?center=CC_MFG&from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  assert.equal(liveMfgReport.status, 200, "Live MFG cost report");
+  record(
+    "Actual Cost Integration",
+    "[API مباشر] Real Manufacturing Cost Report from Posted Ledger Lines",
+    "2 ledger lines tagged CC_MFG, 100 units, 20% markup",
+    "Source lines = 2, Total D31 = 1500, Unit D33 = 15, Price D35 = 18",
+    `SourceLines: ${liveMfgReport.data?.sourceLines}, D31: ${liveMfgReport.data?.values?.D31}, D33: ${liveMfgReport.data?.values?.D33}, D35: ${liveMfgReport.data?.values?.D35}`,
+    liveMfgReport.data?.sourceLines === 2 &&
+      liveMfgReport.data?.values?.D31 === "1500" &&
+      liveMfgReport.data?.values?.D33 === "15" &&
+      liveMfgReport.data?.values?.D35 === "18"
+      ? "PASS"
+      : "FAIL",
+    `Ledger lines successfully feed Table3 and roll up through scheduleValues API`,
+  );
+
+  // 6A.2 Real Cost Link: ANIMAL (الإنتاج الحيواني)
+  const animalEntry = await fetchApi("/api/journal", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      date: "2026-02-15",
+      description: "تكاليف أعلاف ورعاية بيطرية لقطيع التسمين",
+      requestKey: "qa-cost-animal-entry-1",
+      lines: [
+        {
+          accountCode: "5101",
+          debit: "2000",
+          costCenter: "CC_ANIMAL",
+          costItem: templates.ANIMAL.labels.B8,
+        },
+        {
+          accountCode: "5101",
+          debit: "300",
+          costCenter: "CC_ANIMAL",
+          costItem: templates.ANIMAL.labels.B22,
+        },
+        { accountCode: "120101", credit: "2300" },
+      ],
+    }),
+  });
+  assert.equal(animalEntry.status, 201, "ANIMAL cost entry");
+  await fetchApi(`/api/journal/${animalEntry.data.entry.id}`, {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({ action: "post" }),
+  });
+
+  await fetchApi("/api/costs/ANIMAL", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      center: "CC_ANIMAL",
+      from: "2026-01-01",
+      to: "2026-02-28",
+      inputs: { C30: "10" },
+    }),
+  });
+
+  const liveAnimalReport = await fetchApi(
+    "/api/costs/ANIMAL?center=CC_ANIMAL&from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  assert.equal(liveAnimalReport.status, 200, "Live ANIMAL cost report");
+  record(
+    "Actual Cost Integration",
+    "[API مباشر] Real Animal Production Cost Report from Posted Ledger Lines",
+    "2 ledger lines tagged CC_ANIMAL, 10 heads",
+    "Source lines = 2, Total D29 = 2300, Head Cost D31 = 230, Inventory D33 = 2300",
+    `SourceLines: ${liveAnimalReport.data?.sourceLines}, D29: ${liveAnimalReport.data?.values?.D29}, D31: ${liveAnimalReport.data?.values?.D31}, D33: ${liveAnimalReport.data?.values?.D33}`,
+    liveAnimalReport.data?.sourceLines === 2 &&
+      liveAnimalReport.data?.values?.D29 === "2300" &&
+      liveAnimalReport.data?.values?.D31 === "230" &&
+      liveAnimalReport.data?.values?.D33 === "2300"
+      ? "PASS"
+      : "FAIL",
+    `Animal cost ledger lines roll up into feeds & vet care categories`,
+  );
+
+  // 6A.3 Real Cost Link: FARMING (الحاصلات الزراعية)
+  const farmingEntry = await fetchApi("/api/journal", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      date: "2026-02-15",
+      description: "تكاليف تشغيل جرار زراعي لمحصول بطاطس",
+      requestKey: "qa-cost-farming-entry-1",
+      lines: [
+        {
+          accountCode: "5101",
+          debit: "800",
+          costCenter: "CC_FARMING",
+          costItem: templates.FARMING.labels.B19,
+          farm: "F1",
+          pivot: "P1",
+          season: "S1",
+        },
+        { accountCode: "120101", credit: "800" },
+      ],
+    }),
+  });
+  assert.equal(farmingEntry.status, 201, "FARMING cost entry");
+  await fetchApi(`/api/journal/${farmingEntry.data.entry.id}`, {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({ action: "post" }),
+  });
+
+  await fetchApi("/api/costs/FARMING", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      center: "CC_FARMING",
+      from: "2026-01-01",
+      to: "2026-02-28",
+      inputs: { C126: "100" },
+    }),
+  });
+
+  const liveFarmingReport = await fetchApi(
+    "/api/costs/FARMING?center=CC_FARMING&from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  assert.equal(liveFarmingReport.status, 200, "Live FARMING cost report");
+  record(
+    "Actual Cost Integration",
+    "[API مباشر] Real Farming Cost Report from Posted Ledger Lines",
+    "1 ledger line tagged CC_FARMING (جرار زراعي 800 EGP), farm F1, pivot P1, season S1",
+    "Source lines = 1, Tractor D19 = 800, Total Machinery E45 = 800, Total Direct E55 = 800",
+    `SourceLines: ${liveFarmingReport.data?.sourceLines}, D19: ${liveFarmingReport.data?.values?.D19}, E45: ${liveFarmingReport.data?.values?.E45}, E55: ${liveFarmingReport.data?.values?.E55}`,
+    liveFarmingReport.data?.sourceLines === 1 &&
+      liveFarmingReport.data?.values?.D19 === "800" &&
+      liveFarmingReport.data?.values?.E45 === "800" &&
+      liveFarmingReport.data?.values?.E55 === "800"
+      ? "PASS"
+      : "FAIL",
+    `Farming operational costs matched by center, farm, pivot, and season`,
+  );
+
+  // 6A.4 Real Cost Link: EXPORT (التصدير)
+  const exportEntry = await fetchApi("/api/journal", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      date: "2026-02-15",
+      description: "تكاليف نولون وشحن طلبية تصدير",
+      requestKey: "qa-cost-export-entry-1",
+      lines: [
+        {
+          accountCode: "5101",
+          debit: "600",
+          costCenter: "CC_EXPORT",
+          costItem: templates.EXPORT.labels.B43,
+        },
+        { accountCode: "120101", credit: "600" },
+      ],
+    }),
+  });
+  assert.equal(exportEntry.status, 201, "EXPORT cost entry");
+  await fetchApi(`/api/journal/${exportEntry.data.entry.id}`, {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({ action: "post" }),
+  });
+
+  await fetchApi("/api/costs/EXPORT", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      center: "CC_EXPORT",
+      from: "2026-01-01",
+      to: "2026-02-28",
+      inputs: { C61: "50", D41: "0", D42: "0", E19: "0", E20: "0" },
+    }),
+  });
+
+  const liveExportReport = await fetchApi(
+    "/api/costs/EXPORT?center=CC_EXPORT&from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  assert.equal(liveExportReport.status, 200, "Live EXPORT cost report");
+  record(
+    "Actual Cost Integration",
+    "[API مباشر] Real Export Cost Report from Posted Ledger Lines",
+    "1 ledger line tagged CC_EXPORT, exchange rate 50",
+    "Source lines = 1, Freight E43 = 600, Subtotal F47 = 600",
+    `SourceLines: ${liveExportReport.data?.sourceLines}, E43: ${liveExportReport.data?.values?.E43}, F47: ${liveExportReport.data?.values?.F47}`,
+    liveExportReport.data?.sourceLines === 1 &&
+      liveExportReport.data?.values?.E43 === "600" &&
+      liveExportReport.data?.values?.F47 === "600"
+      ? "PASS"
+      : "FAIL",
+    `Export batch freight costs rolled up through export schedule`,
+  );
+
+  // 6A.5 Real Cost Link: IMPORT (الاستيراد)
+  const importEntry = await fetchApi("/api/journal", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      date: "2026-02-15",
+      description: "مصاريف توثيق ومناولة ميناء لشحنة استيراد",
+      requestKey: "qa-cost-import-entry-1",
+      lines: [
+        {
+          accountCode: "5101",
+          debit: "1200",
+          costCenter: "CC_IMPORT",
+          costItem: templates.IMPORT.labels.B31,
+        },
+        { accountCode: "120101", credit: "1200" },
+      ],
+    }),
+  });
+  assert.equal(importEntry.status, 201, "IMPORT cost entry");
+  await fetchApi(`/api/journal/${importEntry.data.entry.id}`, {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({ action: "post" }),
+  });
+
+  await fetchApi("/api/costs/IMPORT", {
+    method: "POST",
+    cookie: adminCookie,
+    headers: { origin: BASE_URL },
+    body: JSON.stringify({
+      center: "CC_IMPORT",
+      from: "2026-01-01",
+      to: "2026-02-28",
+      inputs: { C35: "100", C38: "50", C16: "0", C12: "0" },
+    }),
+  });
+
+  const liveImportReport = await fetchApi(
+    "/api/costs/IMPORT?center=CC_IMPORT&from=2026-01-01&to=2026-02-28",
+    { cookie: adminCookie },
+  );
+  assert.equal(liveImportReport.status, 200, "Live IMPORT cost report");
+  record(
+    "Actual Cost Integration",
+    "[API مباشر] Real Import Cost Report from Posted Ledger Lines",
+    "1 ledger line tagged CC_IMPORT (1200 EGP), divisor C38 = 50",
+    "Source lines = 1, Documentation C31 = 24, Subtotal D33 = 24, Total D34 = 24",
+    `SourceLines: ${liveImportReport.data?.sourceLines}, C31: ${liveImportReport.data?.values?.C31}, D33: ${liveImportReport.data?.values?.D33}, D34: ${liveImportReport.data?.values?.D34}`,
+    liveImportReport.data?.sourceLines === 1 &&
+      liveImportReport.data?.values?.C31 === "24" &&
+      liveImportReport.data?.values?.D33 === "24" &&
+      liveImportReport.data?.values?.D34 === "24"
+      ? "PASS"
+      : "FAIL",
+    `Import shipment clearance and handling costs scaled and aggregated accurately`,
+  );
+
+  // ─────────────────────────────────────────────────────────
+  // SECTION 6B: SEPARATE MATHEMATICAL FORMULA ENGINE TESTS
+  // ─────────────────────────────────────────────────────────
+  console.log(
+    "\n--- Section 6B: Separate Mathematical Formula Engine Tests ---",
+  );
+
+  // 6B.1 Activity 1 Formula Engine: MANUFACTURING
   const mfgTemplate = templates.MANUFACTURING;
   const mfgRows = [
     {
@@ -1037,8 +1537,8 @@ async function main() {
     { Table3: mfgRows },
   );
   record(
-    "Cost Engines",
-    "Activity 1: Manufacturing (التصنيع)",
+    "Separate Formula Engine Tests",
+    "Activity 1 Formula: Manufacturing (التصنيع)",
     "Raw materials: 1000, Labor: 500, Units: 100, Markup: 20%",
     "Total Production: 1500, Unit Cost: 15, Selling Price: 18",
     `Total: ${mfgResult.values.D31}, Unit: ${mfgResult.values.D33}, Price: ${mfgResult.values.D35}`,
@@ -1050,7 +1550,7 @@ async function main() {
     "Manufacturing roll-up formulas verified",
   );
 
-  // 6.2 Activity 2: ANIMAL (الإنتاج الحيواني)
+  // 6B.2 Activity 2 Formula Engine: ANIMAL (الإنتاج الحيواني)
   const animalTemplate = templates.ANIMAL;
   const animalRows = [
     {
@@ -1073,8 +1573,8 @@ async function main() {
     { Table3: animalRows },
   );
   record(
-    "Cost Engines",
-    "Activity 2: Livestock / Animal (الإنتاج الحيواني)",
+    "Separate Formula Engine Tests",
+    "Activity 2 Formula: Livestock / Animal (الإنتاج الحيواني)",
     "Land/Rent: 2000, Feeds/Care: 300, Head count: 10",
     "Total Cost: 2300, Unit Cost: 230",
     `Total: ${animalResult.values.D29}, Unit: ${animalResult.values.D31}`,
@@ -1084,7 +1584,7 @@ async function main() {
     "Animal production formulas verified",
   );
 
-  // 6.3 Activity 3: FARMING (الزراعة)
+  // 6B.3 Activity 3 Formula Engine: FARMING (الزراعة)
   const farmingTemplate = templates.FARMING;
   const farmRows = [
     {
@@ -1104,8 +1604,8 @@ async function main() {
     { Table3: farmRows },
   );
   record(
-    "Cost Engines",
-    "Activity 3: Farming / Agriculture (الزراعة)",
+    "Separate Formula Engine Tests",
+    "Activity 3 Formula: Farming / Agriculture (الزراعة)",
     "Farming costs allocated to pivot P1 / Farm F1 / Season S1",
     "Pivot Cost D13: 5000, Group E16: 5000",
     `D13: ${farmResult.values.D13}, E16: ${farmResult.values.E16}`,
@@ -1115,7 +1615,7 @@ async function main() {
     "Agricultural cost allocation verified",
   );
 
-  // 6.4 Activity 4: EXPORT (التصدير)
+  // 6B.4 Activity 4 Formula Engine: EXPORT (التصدير)
   const expTemplate = templates.EXPORT;
   const expRows = [
     {
@@ -1136,8 +1636,8 @@ async function main() {
     { Table3: expRows },
   );
   record(
-    "Cost Engines",
-    "Activity 4: Export (التصدير)",
+    "Separate Formula Engine Tests",
+    "Activity 4 Formula: Export (التصدير)",
     "Exported Goods: 8000, Freight: 1200, Exch: 50",
     "E8: 8000, E9: 1200, Group F11: 9200",
     `E8: ${expResult.values.E8}, E9: ${expResult.values.E9}, F11: ${expResult.values.F11}`,
@@ -1149,7 +1649,7 @@ async function main() {
     "Export costs calculation verified",
   );
 
-  // 6.5 Activity 5: IMPORT (الاستيراد)
+  // 6B.5 Activity 5 Formula Engine: IMPORT (الاستيراد)
   const impTemplate = templates.IMPORT;
   const impRows = [
     {
@@ -1172,8 +1672,8 @@ async function main() {
     { Table3: impRows },
   );
   record(
-    "Cost Engines",
-    "Activity 5: Import (الاستيراد)",
+    "Separate Formula Engine Tests",
+    "Activity 5 Formula: Import (الاستيراد)",
     "FOB: 1000, Freight: 100, Insurance: 10%, Customs: 5%, Exch: 50, Qty: 100",
     "Total Foreign: 1270.5, Local Total: 63525, Local Unit: 635.25",
     `Foreign: ${impScheduleResult.values.D34}, Local: ${impScheduleResult.values.D39}, Unit: ${impScheduleResult.values.D40}`,
@@ -1185,7 +1685,7 @@ async function main() {
     "Import template calculations verified",
   );
 
-  // 6.6 Missing input surfacing
+  // 6B.6 Missing input surfacing
   const missingInputResult = scheduleValues(
     impTemplate,
     {}, // empty inputs
@@ -1193,7 +1693,7 @@ async function main() {
     { Table3: impRows },
   );
   record(
-    "Cost Engines",
+    "Separate Formula Engine Tests",
     "Missing Input Surfacing",
     "Schedule evaluation without required parameters",
     "Explicit errors populated in result.errors",
@@ -1202,13 +1702,13 @@ async function main() {
     "Missing parameters safely surfaced without undefined evaluation",
   );
 
-  // 6.7 Safe division by zero
+  // 6B.7 Safe division by zero
   const safeDiv = evaluateFormula(
     parseFormula('IFERROR(100/0, "DIV_ZERO")'),
     () => "",
   );
   record(
-    "Cost Engines",
+    "Separate Formula Engine Tests",
     "Safe Division by Zero Handling",
     "Formula: IFERROR(100/0, 'DIV_ZERO')",
     "DIV_ZERO returned without crashing server process",
@@ -1217,10 +1717,10 @@ async function main() {
     "Safe division by zero evaluation verified",
   );
 
-  // 6.8 Asset Depreciation with Residual Value Bound
+  // 6B.8 Asset Depreciation with Residual Value Bound
   const depResult = depreciation("100000", "0", "80000", "0.20", 12, "10000");
   record(
-    "Cost Engines",
+    "Separate Formula Engine Tests",
     "Asset Depreciation Bounded by Residual Value",
     "Cost 100k, Prior 80k, Rate 20%, Residual 10k",
     "Expense bounded to 10000.00 (not 20000)",
@@ -1232,7 +1732,7 @@ async function main() {
     "Residual value boundary respected",
   );
 
-  // 6.9 Partner Equity Allocation (100% sum & Cent Rounding Preservation)
+  // 6B.9 Partner Equity Allocation (100% sum & Cent Rounding Preservation)
   const partners = [
     { code: "P1", name: "شريك أول", share: "0.3333" },
     { code: "P2", name: "شريك ثانٍ", share: "0.3333" },
@@ -1281,7 +1781,7 @@ async function main() {
     D(0),
   );
   record(
-    "Cost Engines",
+    "Separate Formula Engine Tests",
     "Partner Equity Allocation (Cent Rounding Preservation)",
     "Profit: 1000.00 divided among 3 partners (0.3333, 0.3333, 0.3334)",
     "Sum of allocated shares = Exactly 1000.00",
@@ -1291,10 +1791,10 @@ async function main() {
   );
 
   // ─────────────────────────────────────────────────────────
-  // SECTION 7: PLAYWRIGHT BROWSER VALIDATION (ALL DASHBOARD ROUTES)
+  // SECTION 7: PLAYWRIGHT BROWSER UI & INTERACTIVE NAVIGATION
   // ─────────────────────────────────────────────────────────
   console.log(
-    "\n--- Section 7: Playwright Browser UI & Navigation Testing ---",
+    "\n--- Section 7: Playwright Browser UI & Interactive Navigation ---",
   );
 
   const browser = await chromium.launch({
@@ -1309,6 +1809,22 @@ async function main() {
     });
     const page = await context.newPage();
 
+    // Listen to console errors and network request failures
+    const consoleErrors: string[] = [];
+    const failedRequests: string[] = [];
+
+    page.on("console", (msg) => {
+      if (msg.type() === "error") {
+        consoleErrors.push(msg.text());
+      }
+    });
+
+    page.on("requestfailed", (req) => {
+      const err = req.failure()?.errorText || "";
+      if (err.includes("ERR_ABORTED")) return;
+      failedRequests.push(`${req.method()} ${req.url()} (${err})`);
+    });
+
     // Set auth cookie
     const token = adminCookie.split("=")[1];
     await context.addCookies([
@@ -1322,17 +1838,17 @@ async function main() {
       },
     ]);
 
-    // Test Dashboard home
+    // 7.1 Dashboard home
     const dashRes = await page.goto(`${BASE_URL}/ar/dashboard`);
     assert.equal(dashRes?.status(), 200, "Dashboard home");
     await page.waitForLoadState("networkidle");
 
-    // Test Journal Entry creation from UI
+    // 7.2 Interactive Journal Entry: Form filling, save draft click, post click
     await page.goto(`${BASE_URL}/ar/dashboard/accounting/journal-entries`);
     await page.getByRole("heading", { name: "قيد جديد" }).waitFor();
     await page
       .getByLabel("البيان", { exact: true })
-      .fill("قيد اختبار القبول من متصفح الويب");
+      .fill("قيد اختبار القبول التفاعلي من المتصفح");
     await page.getByLabel("التاريخ", { exact: true }).fill("2026-02-15");
     await page
       .getByLabel("الحساب — بند 1", { exact: true })
@@ -1342,6 +1858,8 @@ async function main() {
       .selectOption("31");
     await page.getByLabel("مدين", { exact: true }).nth(0).fill("100");
     await page.getByLabel("دائن", { exact: true }).nth(1).fill("100");
+
+    // Click Save Draft button
     await page.getByRole("button", { name: "حفظ مسودة", exact: true }).click();
     await page
       .getByRole("status")
@@ -1351,9 +1869,11 @@ async function main() {
     const createdCard = page.locator("details").filter({
       has: page
         .locator("summary")
-        .filter({ hasText: "قيد اختبار القبول من متصفح الويب" }),
+        .filter({ hasText: "قيد اختبار القبول التفاعلي من المتصفح" }),
     });
     await createdCard.locator("summary").click();
+
+    // Click Post button
     await createdCard
       .getByRole("button", { name: "ترحيل", exact: true })
       .click();
@@ -1361,31 +1881,121 @@ async function main() {
 
     record(
       "Dashboard UI",
-      "Create & Post Journal Entry from Web Interface",
-      "Browser form filling, save draft, post",
-      "Status changes to مرحل",
-      "Entry successfully saved & posted",
-      "PASS",
-      "Interactive posting flow verified in DOM",
+      "[متصفح - تفاعلي] Create, Save Draft, and Post Journal Entry via UI Clicks",
+      "Browser form filling, click 'حفظ مسودة', click 'ترحيل'",
+      "Status changes to مرحل with zero critical console errors",
+      `Posted badge verified in DOM, Console errors: ${consoleErrors.length}`,
+      consoleErrors.length === 0 ? "PASS" : "FAIL",
+      "Interactive button clicking flow verified in live DOM",
     );
 
-    // Test Trial Balance rendering from UI
+    // 7.3 Interactive Trial Balance: Table render & date filter interaction
     await page.goto(`${BASE_URL}/ar/dashboard/accounting/trial-balance`);
     await page
       .getByText("الخزينة الرئيسية", { exact: false })
       .first()
       .waitFor();
+
+    // Test filter interaction
+    const dateInput = page.locator("input[type='date']").first();
+    if ((await dateInput.count()) > 0) {
+      await dateInput.fill("2026-01-01");
+    }
+
     record(
       "Dashboard UI",
-      "Trial Balance Table Render in Web Interface",
-      "Navigating to /ar/dashboard/accounting/trial-balance",
-      "Render table with accounts",
-      "Table rendered with الخزينة الرئيسية",
-      "PASS",
-      "Trial balance interactive view works",
+      "[متصفح - تفاعلي] Trial Balance Table Render and Filter Interaction",
+      "Navigate to /ar/dashboard/accounting/trial-balance & inspect accounts",
+      "Table rendered with الخزينة الرئيسية without console errors",
+      `Rendered successfully, Console errors: ${consoleErrors.length}`,
+      consoleErrors.length === 0 ? "PASS" : "FAIL",
+      "Trial balance interactive view and filter controls verified",
     );
 
-    // Verify all 61 dashboard routes
+    // 7.4 Interactive Cost Screens: Open and Render all 5 actual cost activity schedules in Web UI
+    const costActivities = [
+      { slug: "manufacturing-costs", center: "CC_MFG", name: "تصنيع" },
+      { slug: "animal-costs", center: "CC_ANIMAL", name: "حيواني" },
+      { slug: "farming-costs", center: "CC_FARMING", name: "زراعي" },
+      { slug: "export-costs", center: "CC_EXPORT", name: "تصدير" },
+      { slug: "import-costs", center: "CC_IMPORT", name: "استيراد" },
+    ];
+
+    let renderedCostViews = 0;
+    for (const act of costActivities) {
+      await page.goto(`${BASE_URL}/ar/dashboard/costs/${act.slug}`);
+      await page.waitForLoadState("networkidle");
+      const centerSelect = page.locator("select").first();
+      if ((await centerSelect.count()) > 0) {
+        await centerSelect.selectOption(act.center);
+        await page.waitForLoadState("networkidle");
+      }
+      const pageText = await page.innerText("body");
+      const hasTable = (await page.locator("table").count()) > 0;
+      if (pageText.length > 100 && hasTable) {
+        renderedCostViews++;
+      }
+    }
+
+    // Interactive button click: Save inputs button in manufacturing-costs UI
+    await page.goto(`${BASE_URL}/ar/dashboard/costs/manufacturing-costs`);
+    await page.waitForLoadState("networkidle");
+    const mfgSelect = page.locator("select").first();
+    if ((await mfgSelect.count()) > 0) {
+      await mfgSelect.selectOption("CC_MFG");
+      await page.waitForLoadState("networkidle");
+    }
+    const saveCostBtn = page.getByRole("button", {
+      name: "حفظ المدخلات وحساب التقرير",
+    });
+    if ((await saveCostBtn.count()) > 0) {
+      await saveCostBtn.click();
+      await page.waitForLoadState("networkidle");
+    }
+
+    record(
+      "Dashboard UI",
+      "[متصفح - تفاعلي] Open and Render All 5 Cost Schedules & Click Calculate in Web UI",
+      "Navigate to 5 cost screens, select center & click 'حفظ المدخلات وحساب التقرير'",
+      "All 5 cost views render tables cleanly; button triggers calculation without error",
+      `Rendered: ${renderedCostViews} / ${costActivities.length}, Console errors: ${consoleErrors.length}, Failed requests: ${failedRequests.length}`,
+      renderedCostViews === costActivities.length &&
+        consoleErrors.length === 0 &&
+        failedRequests.length === 0
+        ? "PASS"
+        : "FAIL",
+      "All 5 live cost views verified in browser with active form submission",
+    );
+
+    // 7.5 Interactive Register Creation: Add Cost Center via Web UI
+    await page.goto(`${BASE_URL}/ar/dashboard/setup/cost-centers`);
+    await page.waitForLoadState("networkidle");
+    const regForm = page.locator("form").first();
+    const codeInput = regForm.locator("input").nth(0);
+    const nameInput = regForm.locator("input").nth(1);
+    const actSelect = regForm.locator("select").first();
+    const newCenterCode = `CC_UI_${runTimestamp.toString().slice(-4)}`;
+    await codeInput.fill(newCenterCode);
+    await nameInput.fill("مركز تكلفة تجريبي من واجهة الويب");
+    await actSelect.selectOption("MANUFACTURING");
+    await regForm.locator("button").first().click();
+    await page.waitForTimeout(2000);
+
+    const tableHasNewCenter = (await page.innerText("body")).includes(newCenterCode);
+
+    record(
+      "Dashboard UI",
+      "[متصفح - تفاعلي] Create Cost Center Register via Form Submission and Save Button",
+      "Fill Code, Name, Activity in /ar/dashboard/setup/cost-centers, click 'حفظ'",
+      "Saved successfully to table without console or network error",
+      `Row in DOM: ${tableHasNewCenter}, Console errors: ${consoleErrors.length}, Failed requests: ${failedRequests.length}`,
+      tableHasNewCenter && consoleErrors.length === 0 && failedRequests.length === 0
+        ? "PASS"
+        : "FAIL",
+      "Interactive register creation verified in DOM",
+    );
+
+    // 7.6 Verify all 61 dashboard routes
     const routes = getAllRouteParams();
     let passedRoutes = 0;
     for (const r of routes) {
@@ -1397,7 +2007,7 @@ async function main() {
     }
     record(
       "Dashboard UI",
-      "Open All 61 Dashboard Routes",
+      "[متصفح - زيارة] Open All 61 Dashboard Routes",
       `61 registered routes in nav.config`,
       "HTTP 200 on all 61 routes without error",
       `${passedRoutes} / ${routes.length} returned HTTP 200`,
@@ -1405,10 +2015,18 @@ async function main() {
       `All 61 routes active and loading`,
     );
 
-    // Test Mobile viewport (390 x 844)
+    // 7.7 Mobile viewport responsive layout & active horizontal overflow check
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(`${BASE_URL}/ar/dashboard/warehouses/warehouse-report`);
     await page.waitForLoadState("networkidle");
+
+    const hasHorizontalOverflow = await page.evaluate(() => {
+      return (
+        document.documentElement.scrollWidth >
+        document.documentElement.clientWidth
+      );
+    });
+
     await page.screenshot({
       path: "test-results/qa-mobile-view.png",
       fullPage: true,
@@ -1416,12 +2034,12 @@ async function main() {
 
     record(
       "Dashboard UI",
-      "Mobile Viewport Responsive Layout (390x844)",
-      "Mobile resolution 390x844 on warehouse report",
-      "Renders cleanly without horizontal overflow",
-      "Screenshot saved to test-results/qa-mobile-view.png",
-      "PASS",
-      "Mobile view responsive",
+      "[متصفح - تفاعلي] Mobile Viewport (390x844) Active Overflow Verification",
+      "Mobile resolution 390x844 on warehouse report, check scrollWidth <= clientWidth",
+      "scrollWidth <= clientWidth (no horizontal layout spill)",
+      `Horizontal overflow detected: ${hasHorizontalOverflow}`,
+      !hasHorizontalOverflow ? "PASS" : "FAIL",
+      "Active layout width evaluation passed and screenshot saved to test-results/qa-mobile-view.png",
     );
   } finally {
     await browser.close();
@@ -1431,11 +2049,19 @@ async function main() {
   console.log(`\n=== ACCEPTANCE TEST SUITE COMPLETED IN ${durationSec}s ===`);
   const totalPassed = results.filter((r) => r.status === "PASS").length;
   const totalFailed = results.filter((r) => r.status === "FAIL").length;
+  const totalNotTested = results.filter((r) => r.status === "NOT_TESTED").length;
   console.log(
-    `Summary: ${totalPassed} PASSED, ${totalFailed} FAILED (Total: ${results.length})`,
+    `Summary: ${totalPassed} PASSED, ${totalFailed} FAILED, ${totalNotTested} NOT_TESTED (Total: ${results.length})`,
   );
 
-  return { results, totalPassed, totalFailed, durationSec };
+  if (totalFailed > 0) {
+    console.error(
+      `\n❌ TEST SUITE FAILED with ${totalFailed} failure(s). Exiting with code 1.`,
+    );
+    process.exit(1);
+  }
+
+  return { results, totalPassed, totalFailed, totalNotTested, durationSec };
 }
 
 main()

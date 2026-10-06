@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hashPassword } from "../src/lib/auth/server";
+import crypto from "crypto";
 
 const prisma = new PrismaClient();
 
@@ -61,8 +62,10 @@ async function main() {
   }
   console.log(`Seeded ${copied} accounts into QA Company ID ${qaCompany.id}.`);
 
-  // 3. Create QA Users
-  const testPassword = "QaTestPassword1234!";
+  // 3. Create or Update QA Users with dynamic secure password
+  const testPassword =
+    process.env.QA_PASSWORD ||
+    crypto.randomBytes(24).toString("base64url") + "Aa1!";
   const passwordHash = hashPassword(testPassword);
 
   const users = [
@@ -72,7 +75,7 @@ async function main() {
   ];
 
   for (const u of users) {
-    await prisma.user.upsert({
+    const existingUser = await prisma.user.upsert({
       where: { email: u.email },
       update: {
         companyId: qaCompany.id,
@@ -89,7 +92,11 @@ async function main() {
         passwordHash,
       },
     });
-    console.log(`Configured user: ${u.email} (${u.role})`);
+    // Invalidate existing sessions for this user
+    await prisma.session.deleteMany({
+      where: { userId: existingUser.id },
+    });
+    console.log(`Configured user: ${u.email} (${u.role}) - revoked existing sessions`);
   }
 
   console.log("QA Setup completed successfully!");
