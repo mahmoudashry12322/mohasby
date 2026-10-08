@@ -84,7 +84,8 @@
       "weighTicket": "Weigh Ticket",
       "settings": "Settings",
       "auditLog": "Audit Log",
-      "documents": "Sales and purchases"
+      "documents": "Sales and purchases",
+      "payslip": "Employee pay statement"
     },
     "descriptions": {
       "chartOfAccountsDesc": "Chart of accounts with codes and account natures.",
@@ -151,7 +152,8 @@
       "weighTicketDesc": "Weigh Ticket",
       "settingsDesc": "Settings",
       "auditLogDesc": "Audit Log",
-      "documentsDesc": "Accounting documents"
+      "documentsDesc": "Accounting documents",
+      "payslipDesc": "Employee pay statement"
     },
     "shell": {
       "home": "Home",

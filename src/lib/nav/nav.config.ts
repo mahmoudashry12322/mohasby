@@ -1,4 +1,5 @@
 import { modules } from "@/lib/accounting/modules";
+import workbookHome from "@/data/workbook-home.json";
 export type NavItem = {
   key: string;
   slug: string;
@@ -17,7 +18,7 @@ export type NavGroup = {
   items: NavItem[];
 };
 
-export const NAV_GROUPS: NavGroup[] = [
+const ROUTE_GROUPS: NavGroup[] = [
   {
     key: "accounting",
     slug: "accounting",
@@ -405,7 +406,8 @@ const additions: Record<string, [string, string, string][]> = {
     ["audit-log", "auditLog", "سجل المراجعة"],
   ],
 };
-for (const group of NAV_GROUPS) {
+additions.hr = [["payslip", "payslip", "كشف مفردات الراتب"]];
+for (const group of ROUTE_GROUPS) {
   for (const [slug, labelKey] of additions[group.slug] || [])
     group.items.push({
       key: slug,
@@ -417,11 +419,22 @@ for (const group of NAV_GROUPS) {
     (item) => item.slug === "chart-of-accounts" || !!modules[item.slug],
   );
 }
-for (let i = NAV_GROUPS.length - 1; i >= 0; i--)
-  if (!NAV_GROUPS[i].items.length) NAV_GROUPS.splice(i, 1);
+// Only the 43 workbook links are visible in navigation. Supporting routes remain
+// reachable from their owning workflow and user settings, not extra Home tiles.
+export const NAV_GROUPS: NavGroup[] = ROUTE_GROUPS.map((group) => ({
+  ...group,
+  items: workbookHome
+    .filter((b) => b.group === group.slug)
+    .map((b) => ({
+      key: b.page,
+      slug: b.page,
+      labelKey: b.labelKey,
+      descriptionKey: b.labelKey + "Desc",
+    })),
+})).filter((group) => group.items.length > 0);
 
 export function getNavGroup(groupSlug: string): NavGroup | undefined {
-  return NAV_GROUPS.find((g) => g.slug === groupSlug);
+  return ROUTE_GROUPS.find((g) => g.slug === groupSlug);
 }
 
 export function getNavItem(

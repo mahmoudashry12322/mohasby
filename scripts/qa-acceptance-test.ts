@@ -1205,13 +1205,13 @@ async function main() {
           accountCode: "5101",
           debit: "1000",
           costCenter: "CC_MFG",
-          costItem: templates.MANUFACTURING.labels.B8,
+          costItem: templates.MANUFACTURING.labels.B9,
         },
         {
           accountCode: "5101",
           debit: "500",
           costCenter: "CC_MFG",
-          costItem: templates.MANUFACTURING.labels.B13,
+          costItem: templates.MANUFACTURING.labels.B14,
         },
         { accountCode: "120101", credit: "1500" },
       ],
@@ -1234,7 +1234,7 @@ async function main() {
       center: "CC_MFG",
       from: "2026-01-01",
       to: "2026-02-28",
-      inputs: { C32: "100", C34: "0.2" },
+      inputs: { C33: "100", C35: "0.2" },
     }),
   });
 
@@ -1248,12 +1248,12 @@ async function main() {
     "Actual Cost Integration",
     "[API مباشر] Real Manufacturing Cost Report from Posted Ledger Lines",
     "2 ledger lines tagged CC_MFG, 100 units, 20% markup",
-    "Source lines = 2, Total D31 = 1500, Unit D33 = 15, Price D35 = 18",
-    `SourceLines: ${liveMfgReport.data?.sourceLines}, D31: ${liveMfgReport.data?.values?.D31}, D33: ${liveMfgReport.data?.values?.D33}, D35: ${liveMfgReport.data?.values?.D35}`,
+    "Source lines = 2, Total D32 = 1500, Unit D34 = 15, Price D36 = 18",
+    `SourceLines: ${liveMfgReport.data?.sourceLines}, D32: ${liveMfgReport.data?.values?.D32}, D34: ${liveMfgReport.data?.values?.D34}, D36: ${liveMfgReport.data?.values?.D36}`,
     liveMfgReport.data?.sourceLines === 2 &&
-      liveMfgReport.data?.values?.D31 === "1500" &&
-      liveMfgReport.data?.values?.D33 === "15" &&
-      liveMfgReport.data?.values?.D35 === "18"
+      liveMfgReport.data?.values?.D32 === "1500" &&
+      liveMfgReport.data?.values?.D34 === "15" &&
+      liveMfgReport.data?.values?.D36 === "18"
       ? "PASS"
       : "FAIL",
     `Ledger lines successfully feed Table3 and roll up through scheduleValues API`,
@@ -1273,13 +1273,13 @@ async function main() {
           accountCode: "5101",
           debit: "2000",
           costCenter: "CC_ANIMAL",
-          costItem: templates.ANIMAL.labels.B8,
+          costItem: templates.ANIMAL.labels.B9,
         },
         {
           accountCode: "5101",
           debit: "300",
           costCenter: "CC_ANIMAL",
-          costItem: templates.ANIMAL.labels.B22,
+          costItem: templates.ANIMAL.labels.B23,
         },
         { accountCode: "120101", credit: "2300" },
       ],
@@ -1301,7 +1301,7 @@ async function main() {
       center: "CC_ANIMAL",
       from: "2026-01-01",
       to: "2026-02-28",
-      inputs: { C30: "10" },
+      inputs: { C31: "10" },
     }),
   });
 
@@ -1314,12 +1314,12 @@ async function main() {
     "Actual Cost Integration",
     "[API مباشر] Real Animal Production Cost Report from Posted Ledger Lines",
     "2 ledger lines tagged CC_ANIMAL, 10 heads",
-    "Source lines = 2, Total D29 = 2300, Head Cost D31 = 230, Inventory D33 = 2300",
-    `SourceLines: ${liveAnimalReport.data?.sourceLines}, D29: ${liveAnimalReport.data?.values?.D29}, D31: ${liveAnimalReport.data?.values?.D31}, D33: ${liveAnimalReport.data?.values?.D33}`,
+    "Source lines = 2, Total D30 = 2300, Head Cost D32 = 230, Inventory D34 = 2300",
+    `SourceLines: ${liveAnimalReport.data?.sourceLines}, D30: ${liveAnimalReport.data?.values?.D30}, D32: ${liveAnimalReport.data?.values?.D32}, D34: ${liveAnimalReport.data?.values?.D34}`,
     liveAnimalReport.data?.sourceLines === 2 &&
-      liveAnimalReport.data?.values?.D29 === "2300" &&
-      liveAnimalReport.data?.values?.D31 === "230" &&
-      liveAnimalReport.data?.values?.D33 === "2300"
+      liveAnimalReport.data?.values?.D30 === "2300" &&
+      liveAnimalReport.data?.values?.D32 === "230" &&
+      liveAnimalReport.data?.values?.D34 === "2300"
       ? "PASS"
       : "FAIL",
     `Animal cost ledger lines roll up into feeds & vet care categories`,
@@ -1339,7 +1339,7 @@ async function main() {
           accountCode: "5101",
           debit: "800",
           costCenter: "CC_FARMING",
-          costItem: templates.FARMING.labels.B19,
+          costItem: templates.FARMING.labels.B20,
           farm: "F1",
           pivot: "P1",
           season: "S1",
@@ -1364,7 +1364,7 @@ async function main() {
       center: "CC_FARMING",
       from: "2026-01-01",
       to: "2026-02-28",
-      inputs: { C126: "100" },
+      inputs: { C132: "100" },
     }),
   });
 
@@ -1377,12 +1377,12 @@ async function main() {
     "Actual Cost Integration",
     "[API مباشر] Real Farming Cost Report from Posted Ledger Lines",
     "1 ledger line tagged CC_FARMING (جرار زراعي 800 EGP), farm F1, pivot P1, season S1",
-    "Source lines = 1, Tractor D19 = 800, Total Machinery E45 = 800, Total Direct E55 = 800",
-    `SourceLines: ${liveFarmingReport.data?.sourceLines}, D19: ${liveFarmingReport.data?.values?.D19}, E45: ${liveFarmingReport.data?.values?.E45}, E55: ${liveFarmingReport.data?.values?.E55}`,
+    "Source lines = 1, Tractor D20 = 800, Total Machinery E46 = 800, Total Direct E56 = 800",
+    `SourceLines: ${liveFarmingReport.data?.sourceLines}, D20: ${liveFarmingReport.data?.values?.D20}, E46: ${liveFarmingReport.data?.values?.E46}, E56: ${liveFarmingReport.data?.values?.E56}`,
     liveFarmingReport.data?.sourceLines === 1 &&
-      liveFarmingReport.data?.values?.D19 === "800" &&
-      liveFarmingReport.data?.values?.E45 === "800" &&
-      liveFarmingReport.data?.values?.E55 === "800"
+      liveFarmingReport.data?.values?.D20 === "800" &&
+      liveFarmingReport.data?.values?.E46 === "800" &&
+      liveFarmingReport.data?.values?.E56 === "800"
       ? "PASS"
       : "FAIL",
     `Farming operational costs matched by center, farm, pivot, and season`,
@@ -1402,7 +1402,7 @@ async function main() {
           accountCode: "5101",
           debit: "600",
           costCenter: "CC_EXPORT",
-          costItem: templates.EXPORT.labels.B43,
+          costItem: templates.EXPORT.labels.B44,
         },
         { accountCode: "120101", credit: "600" },
       ],
@@ -1424,7 +1424,7 @@ async function main() {
       center: "CC_EXPORT",
       from: "2026-01-01",
       to: "2026-02-28",
-      inputs: { C61: "50", D41: "0", D42: "0", E19: "0", E20: "0" },
+      inputs: { C62: "50", D42: "0", D43: "0", E20: "0", E21: "0" },
     }),
   });
 
@@ -1437,11 +1437,11 @@ async function main() {
     "Actual Cost Integration",
     "[API مباشر] Real Export Cost Report from Posted Ledger Lines",
     "1 ledger line tagged CC_EXPORT, exchange rate 50",
-    "Source lines = 1, Freight E43 = 600, Subtotal F47 = 600",
-    `SourceLines: ${liveExportReport.data?.sourceLines}, E43: ${liveExportReport.data?.values?.E43}, F47: ${liveExportReport.data?.values?.F47}`,
+    "Source lines = 1, Freight E44 = 600, Subtotal F48 = 600",
+    `SourceLines: ${liveExportReport.data?.sourceLines}, E44: ${liveExportReport.data?.values?.E44}, F48: ${liveExportReport.data?.values?.F48}`,
     liveExportReport.data?.sourceLines === 1 &&
-      liveExportReport.data?.values?.E43 === "600" &&
-      liveExportReport.data?.values?.F47 === "600"
+      liveExportReport.data?.values?.E44 === "600" &&
+      liveExportReport.data?.values?.F48 === "600"
       ? "PASS"
       : "FAIL",
     `Export batch freight costs rolled up through export schedule`,
@@ -1461,7 +1461,7 @@ async function main() {
           accountCode: "5101",
           debit: "1200",
           costCenter: "CC_IMPORT",
-          costItem: templates.IMPORT.labels.B31,
+          costItem: templates.IMPORT.labels.B32,
         },
         { accountCode: "120101", credit: "1200" },
       ],
@@ -1483,7 +1483,7 @@ async function main() {
       center: "CC_IMPORT",
       from: "2026-01-01",
       to: "2026-02-28",
-      inputs: { C35: "100", C38: "50", C16: "0", C12: "0" },
+      inputs: { C36: "100", C39: "50", C17: "0", C13: "0" },
     }),
   });
 
@@ -1495,13 +1495,13 @@ async function main() {
   record(
     "Actual Cost Integration",
     "[API مباشر] Real Import Cost Report from Posted Ledger Lines",
-    "1 ledger line tagged CC_IMPORT (1200 EGP), divisor C38 = 50",
-    "Source lines = 1, Documentation C31 = 24, Subtotal D33 = 24, Total D34 = 24",
-    `SourceLines: ${liveImportReport.data?.sourceLines}, C31: ${liveImportReport.data?.values?.C31}, D33: ${liveImportReport.data?.values?.D33}, D34: ${liveImportReport.data?.values?.D34}`,
+    "1 ledger line tagged CC_IMPORT (1200 EGP), divisor C39 = 50",
+    "Source lines = 1, Documentation C32 = 24, Subtotal D34 = 24, Total D35 = 24",
+    `SourceLines: ${liveImportReport.data?.sourceLines}, C32: ${liveImportReport.data?.values?.C32}, D34: ${liveImportReport.data?.values?.D34}, D35: ${liveImportReport.data?.values?.D35}`,
     liveImportReport.data?.sourceLines === 1 &&
-      liveImportReport.data?.values?.C31 === "24" &&
-      liveImportReport.data?.values?.D33 === "24" &&
-      liveImportReport.data?.values?.D34 === "24"
+      liveImportReport.data?.values?.C32 === "24" &&
+      liveImportReport.data?.values?.D34 === "24" &&
+      liveImportReport.data?.values?.D35 === "24"
       ? "PASS"
       : "FAIL",
     `Import shipment clearance and handling costs scaled and aggregated accurately`,
@@ -1519,20 +1519,20 @@ async function main() {
   const mfgRows = [
     {
       مدين: "1000",
-      "الحساب الفرعى": mfgTemplate.labels.A7,
+      "الحساب الفرعى": mfgTemplate.labels.A8,
       "مركز تكلفة تحليلى": "M_QA",
-      "مركز تكلفة فرعى": mfgTemplate.labels.B8,
+      "مركز تكلفة فرعى": mfgTemplate.labels.B9,
     },
     {
       مدين: "500",
       "الحساب الفرعى": "أجور",
       "مركز تكلفة تحليلى": "M_QA",
-      "مركز تكلفة فرعى": mfgTemplate.labels.B13,
+      "مركز تكلفة فرعى": mfgTemplate.labels.B14,
     },
   ];
   const mfgResult = scheduleValues(
     mfgTemplate,
-    { C32: "100", C34: "0.2" },
+    { C33: "100", C35: "0.2" },
     { center: "M_QA" },
     { Table3: mfgRows },
   );
@@ -1541,10 +1541,10 @@ async function main() {
     "Activity 1 Formula: Manufacturing (التصنيع)",
     "Raw materials: 1000, Labor: 500, Units: 100, Markup: 20%",
     "Total Production: 1500, Unit Cost: 15, Selling Price: 18",
-    `Total: ${mfgResult.values.D31}, Unit: ${mfgResult.values.D33}, Price: ${mfgResult.values.D35}`,
-    mfgResult.values.D31 === "1500" &&
-      mfgResult.values.D33 === "15" &&
-      mfgResult.values.D35 === "18"
+    `Total: ${mfgResult.values.D32}, Unit: ${mfgResult.values.D34}, Price: ${mfgResult.values.D36}`,
+    mfgResult.values.D32 === "1500" &&
+      mfgResult.values.D34 === "15" &&
+      mfgResult.values.D36 === "18"
       ? "PASS"
       : "FAIL",
     "Manufacturing roll-up formulas verified",
@@ -1556,19 +1556,19 @@ async function main() {
     {
       مدين: "2000",
       "مركز تكلفة تحليلى": "A_QA",
-      "الحساب الفرعى": animalTemplate.labels.A8,
-      "مركز تكلفة فرعى": animalTemplate.labels.B8,
+      "الحساب الفرعى": animalTemplate.labels.A9,
+      "مركز تكلفة فرعى": animalTemplate.labels.B9,
     },
     {
       مدين: "300",
       "مركز تكلفة تحليلى": "A_QA",
-      "الحساب الفرعى": animalTemplate.labels.A8,
-      "مركز تكلفة فرعى": animalTemplate.labels.B22,
+      "الحساب الفرعى": animalTemplate.labels.A9,
+      "مركز تكلفة فرعى": animalTemplate.labels.B23,
     },
   ];
   const animalResult = scheduleValues(
     animalTemplate,
-    { C30: "10" },
+    { C31: "10" },
     { center: "A_QA" },
     { Table3: animalRows },
   );
@@ -1577,8 +1577,8 @@ async function main() {
     "Activity 2 Formula: Livestock / Animal (الإنتاج الحيواني)",
     "Land/Rent: 2000, Feeds/Care: 300, Head count: 10",
     "Total Cost: 2300, Unit Cost: 230",
-    `Total: ${animalResult.values.D29}, Unit: ${animalResult.values.D31}`,
-    animalResult.values.D29 === "2300" && animalResult.values.D31 === "230"
+    `Total: ${animalResult.values.D30}, Unit: ${animalResult.values.D32}`,
+    animalResult.values.D30 === "2300" && animalResult.values.D32 === "230"
       ? "PASS"
       : "FAIL",
     "Animal production formulas verified",
@@ -1594,7 +1594,7 @@ async function main() {
       "مركز تكلفة تحليلى": "F_QA",
       المزرعة: "F1",
       الموسم: "S1",
-      "مركز تكلفة فرعى": farmingTemplate.labels.B13,
+      "مركز تكلفة فرعى": farmingTemplate.labels.B14,
     },
   ];
   const farmResult = scheduleValues(
@@ -1607,9 +1607,9 @@ async function main() {
     "Separate Formula Engine Tests",
     "Activity 3 Formula: Farming / Agriculture (الزراعة)",
     "Farming costs allocated to pivot P1 / Farm F1 / Season S1",
-    "Pivot Cost D13: 5000, Group E16: 5000",
-    `D13: ${farmResult.values.D13}, E16: ${farmResult.values.E16}`,
-    farmResult.values.D13 === "5000" && farmResult.values.E16 === "5000"
+    "Pivot Cost D14: 5000, Group E17: 5000",
+    `D14: ${farmResult.values.D14}, E17: ${farmResult.values.E17}`,
+    farmResult.values.D14 === "5000" && farmResult.values.E17 === "5000"
       ? "PASS"
       : "FAIL",
     "Agricultural cost allocation verified",
@@ -1621,17 +1621,17 @@ async function main() {
     {
       مدين: "8000",
       "مركز تكلفة تحليلى": "E_QA",
-      "مركز تكلفة فرعى": expTemplate.labels.B8,
+      "مركز تكلفة فرعى": expTemplate.labels.B9,
     },
     {
       مدين: "1200",
       "مركز تكلفة تحليلى": "E_QA",
-      "مركز تكلفة فرعى": expTemplate.labels.B9,
+      "مركز تكلفة فرعى": expTemplate.labels.B10,
     },
   ];
   const expResult = scheduleValues(
     expTemplate,
-    { C61: "50", E20: "0", E19: "0", D41: "0", D42: "0" },
+    { C62: "50", E21: "0", E20: "0", D42: "0", D43: "0" },
     { center: "E_QA" },
     { Table3: expRows },
   );
@@ -1639,11 +1639,11 @@ async function main() {
     "Separate Formula Engine Tests",
     "Activity 4 Formula: Export (التصدير)",
     "Exported Goods: 8000, Freight: 1200, Exch: 50",
-    "E8: 8000, E9: 1200, Group F11: 9200",
-    `E8: ${expResult.values.E8}, E9: ${expResult.values.E9}, F11: ${expResult.values.F11}`,
-    expResult.values.E8 === "8000" &&
-      expResult.values.E9 === "1200" &&
-      expResult.values.F11 === "9200"
+    "E9: 8000, E10: 1200, Group F12: 9200",
+    `E9: ${expResult.values.E9}, E10: ${expResult.values.E10}, F12: ${expResult.values.F12}`,
+    expResult.values.E9 === "8000" &&
+      expResult.values.E10 === "1200" &&
+      expResult.values.F12 === "9200"
       ? "PASS"
       : "FAIL",
     "Export costs calculation verified",
@@ -1654,20 +1654,20 @@ async function main() {
   const impRows = [
     {
       مدين: "1000",
-      "الحساب الفرعى": impTemplate.labels.A8,
+      "الحساب الفرعى": impTemplate.labels.A9,
       "مركز تكلفة تحليلى": "IMP_QA",
-      "مركز تكلفة فرعى": impTemplate.labels.B8,
+      "مركز تكلفة فرعى": impTemplate.labels.B9,
     },
     {
       مدين: "100",
       "الحساب الفرعى": "مصروفات",
       "مركز تكلفة تحليلى": "IMP_QA",
-      "مركز تكلفة فرعى": impTemplate.labels.B9,
+      "مركز تكلفة فرعى": impTemplate.labels.B10,
     },
   ];
   const impScheduleResult = scheduleValues(
     impTemplate,
-    { C12: "0.1", C16: "0.05", C35: "100", C38: "50" },
+    { C13: "0.1", C17: "0.05", C36: "100", C39: "50" },
     { center: "IMP_QA" },
     { Table3: impRows },
   );
@@ -1676,10 +1676,10 @@ async function main() {
     "Activity 5 Formula: Import (الاستيراد)",
     "FOB: 1000, Freight: 100, Insurance: 10%, Customs: 5%, Exch: 50, Qty: 100",
     "Total Foreign: 1270.5, Local Total: 63525, Local Unit: 635.25",
-    `Foreign: ${impScheduleResult.values.D34}, Local: ${impScheduleResult.values.D39}, Unit: ${impScheduleResult.values.D40}`,
-    impScheduleResult.values.D34 === "1270.5" &&
-      impScheduleResult.values.D39 === "63525" &&
-      impScheduleResult.values.D40 === "635.25"
+    `Foreign: ${impScheduleResult.values.D35}, Local: ${impScheduleResult.values.D40}, Unit: ${impScheduleResult.values.D41}`,
+    impScheduleResult.values.D35 === "1270.5" &&
+      impScheduleResult.values.D40 === "63525" &&
+      impScheduleResult.values.D41 === "635.25"
       ? "PASS"
       : "FAIL",
     "Import template calculations verified",
@@ -1995,7 +1995,7 @@ async function main() {
       "Interactive register creation verified in DOM",
     );
 
-    // 7.6 Verify all 61 dashboard routes
+    // 7.6 Verify all 43 dashboard routes
     const routes = getAllRouteParams();
     let passedRoutes = 0;
     for (const r of routes) {
@@ -2007,12 +2007,12 @@ async function main() {
     }
     record(
       "Dashboard UI",
-      "[متصفح - زيارة] Open All 61 Dashboard Routes",
-      `61 registered routes in nav.config`,
-      "HTTP 200 on all 61 routes without error",
+      "[متصفح - زيارة] Open All 43 Dashboard Routes",
+      `43 registered routes in nav.config`,
+      "HTTP 200 on all 43 routes without error",
       `${passedRoutes} / ${routes.length} returned HTTP 200`,
       passedRoutes === routes.length ? "PASS" : "FAIL",
-      `All 61 routes active and loading`,
+      `All 43 routes active and loading`,
     );
 
     // 7.7 Mobile viewport responsive layout & active horizontal overflow check

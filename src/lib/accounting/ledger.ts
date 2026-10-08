@@ -145,13 +145,52 @@ export async function checkLines(
       (await tx.register.count({
         where: {
           companyId: actor.companyId,
-          kind,
+          kind: field === "party" ? { in: ["parties", "employees"] } : kind,
           code: { in: values },
           isActive: true,
         },
       })) !== values.length
     )
       throw new HttpError(400, `مرجع غير موجود: ${field}`);
+  }
+}
+async function checkPayrollMonth(
+  tx: Tx,
+  actor: Actor,
+  date: Date,
+  lines: { party: string; accountCode: string }[],
+) {
+  const employees = await tx.register.findMany({
+    where: {
+      companyId: actor.companyId,
+      kind: "employees",
+      code: { in: lines.map((l) => l.party).filter(Boolean) },
+    },
+  });
+  for (const employee of employees) {
+    if (
+      !lines.some(
+        (l) =>
+          l.party === employee.code &&
+          l.accountCode ===
+            (employee.data as Record<string, string>).advanceAccount,
+      )
+    )
+      continue;
+    const saved = await tx.register.findUnique({
+      where: {
+        companyId_kind_code: {
+          companyId: actor.companyId,
+          kind: "payroll-month",
+          code: date.toISOString().slice(0, 7) + ":" + employee.code,
+        },
+      },
+    });
+    if ((saved?.data as Record<string, unknown> | undefined)?.entryId)
+      throw new HttpError(
+        409,
+        "سلف هذا الشهر أُقفلت بترحيل المرتب؛ استخدم تسوية في شهر مفتوح",
+      );
   }
 }
 export async function createEntryTx(
@@ -174,6 +213,7 @@ export async function createEntryTx(
   }
   await openDate(tx, actor.companyId, new Date(input.date));
   await checkLines(tx, actor, input.lines);
+  await checkPayrollMonth(tx, actor, new Date(input.date), input.lines);
   const enriched = [];
   for (const line of input.lines) {
     const center = line.costCenter
@@ -242,7 +282,9 @@ export async function entryAction(
     if (action === "reverse") {
       if (entry.status !== "POSTED" || entry.reversalOf)
         throw new HttpError(409, "يمكن عكس قيد مرحل أصلي فقط");
-      if (["DEPRECIATION", "INVENTORY_CLOSE"].includes(entry.document))
+      if (
+        ["DEPRECIATION", "INVENTORY_CLOSE", "PAYROLL"].includes(entry.document)
+      )
         throw new HttpError(
           409,
           "قيد نظام مرتبط بجدول إهلاك أو إقفال. سجل تسوية معتمدة في فترة مفتوحة",
@@ -289,6 +331,8 @@ export async function entryAction(
     if (entry.status !== "DRAFT")
       throw new HttpError(409, "القيد المرحل لا يعدل ولا يحذف؛ استخدم العكس");
     await openDate(tx, actor.companyId, entry.date);
+    if (action === "post")
+      await checkPayrollMonth(tx, actor, entry.date, entry.lines);
     if (action === "post")
       await checkLines(
         tx,
