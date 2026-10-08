@@ -1,6 +1,6 @@
 import { authorize } from "@/lib/auth/server";
 import prisma from "@/lib/prisma";
-import { body, fail, ok } from "@/lib/server/http";
+import { body, fail, HttpError, ok } from "@/lib/server/http";
 import { createEntry, dateOnly, entrySchema } from "@/lib/accounting/ledger";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
@@ -39,9 +39,12 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const actor = await authorize(request, true);
+    const input = entrySchema.parse(await body(request));
+    if (["PAYROLL", "PAYROLL_ADVANCE"].includes(input.document))
+      throw new HttpError(400, "مستند المرتبات ينشأ من شاشة المرتبات فقط");
     return ok(
       {
-        entry: await createEntry(actor, entrySchema.parse(await body(request))),
+        entry: await createEntry(actor, input),
       },
       201,
     );

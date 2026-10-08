@@ -70,6 +70,10 @@ export function JournalView({
     "/api/registers/cost-centers",
     { rows: [] },
   );
+  const employees = useLoad<{ rows: { code: string; name: string }[] }>(
+    "/api/registers/employees",
+    { rows: [] },
+  );
   const [page, setPage] = useState(1);
   const entries = useLoad<{ entries: Entry[]; total: number }>(
     `/api/journal?page=${page}${kind === "GENERAL" ? "" : "&kind=" + kind}`,
@@ -276,11 +280,13 @@ export function JournalView({
                       onChange={(e) => change(i, "party", e.target.value)}
                     >
                       <option value="">بدون</option>
-                      {parties.data.rows.map((p) => (
-                        <option key={p.code} value={p.code}>
-                          {p.name}
-                        </option>
-                      ))}
+                      {[...parties.data.rows, ...employees.data.rows].map(
+                        (p) => (
+                          <option key={p.code} value={p.code}>
+                            {p.name}
+                          </option>
+                        ),
+                      )}
                     </select>
                   </Field>
                   <Field label="مركز التكلفة">

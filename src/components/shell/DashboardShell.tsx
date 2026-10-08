@@ -136,7 +136,9 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       className="min-h-screen flex bg-canvas text-ink-900 selection:bg-accent-500/30 selection:text-green-950"
     >
       {/* 1. Desktop Animated Sidebar */}
-      <div className="hidden lg:block shrink-0 print:!hidden">
+      <div
+        className={isHome ? "hidden" : "hidden lg:block shrink-0 print:!hidden"}
+      >
         <Sidebar
           activeGroupSlug={activeGroupSlug}
           activePageSlug={activePageSlug}
@@ -170,7 +172,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
         />
 
         {/* Page Content */}
-        <PageFrame>{children}</PageFrame>
+        <PageFrame width={isHome ? "full" : "default"}>{children}</PageFrame>
       </div>
     </div>
   );
