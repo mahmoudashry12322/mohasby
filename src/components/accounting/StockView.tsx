@@ -20,10 +20,12 @@ export function StockView({
   title,
   initialKind = "RECEIPT",
   readOnly = false,
+  coldOnly = false,
 }: {
   title: string;
   initialKind?: string;
   readOnly?: boolean;
+  coldOnly?: boolean;
 }) {
   const [query, setQuery] = useState(""),
     [filterItem, setFilterItem] = useState(""),
@@ -52,6 +54,7 @@ export function StockView({
   }>(
     "/api/stock?" +
       query +
+      (coldOnly ? "&warehouseType=COLD_STORAGE" : "") +
       "&itemId=" +
       encodeURIComponent(filterItem) +
       "&warehouse=" +
@@ -247,11 +250,13 @@ export function StockView({
             onChange={(e) => setFilterWarehouse(e.target.value)}
           >
             <option value="">الكل</option>
-            {warehouses.data.rows.map((r) => (
-              <option key={r.code} value={r.code}>
-                {r.name}
-              </option>
-            ))}
+            {warehouses.data.rows
+              .filter((r) => !coldOnly || r.data.type === "COLD_STORAGE")
+              .map((r) => (
+                <option key={r.code} value={r.code}>
+                  {r.name}
+                </option>
+              ))}
           </select>
         </Field>
       </div>

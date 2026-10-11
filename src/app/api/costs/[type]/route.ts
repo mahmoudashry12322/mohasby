@@ -69,13 +69,13 @@ export async function POST(
         where: {
           companyId_kind_code: {
             companyId: actor.companyId,
-            kind: "cost-inputs",
+            kind: "cost-inputs-final",
             code,
           },
         },
         create: {
           companyId: actor.companyId,
-          kind: "cost-inputs",
+          kind: "cost-inputs-final",
           code,
           name: template.title,
           data: input.inputs,

@@ -10,7 +10,7 @@ type Node =
 export function parseFormula(formula: string): Node {
   const tokens =
     formula.match(
-      /Table\d+\[[^\]]+\]|"(?:[^"]|"")*"|[A-Z]+\d+|[A-Z][A-Z0-9_]*|\d+(?:\.\d+)?|[()+\-*/,:]/g,
+      /Table\d+\[[^\]]+\]|"(?:[^"]|"")*"|[A-Z]+\d+|[A-Z][A-Z0-9_]*|\d+(?:\.\d+)?|<=|>=|<>|[<>=()+\-*/,:]/g,
     ) || [];
   if (
     tokens.join("") !== formula.replace(/\s+(?=(?:[^"]*"[^"]*")*[^"]*$)/g, "")
@@ -70,11 +70,19 @@ export function parseFormula(formula: string): Node {
     }
     return node;
   }
-  function expression(): Node {
+  function addition(): Node {
     let node = product();
     while (["+", "-"].includes(tokens[pos])) {
       const op = tokens[pos++];
       node = { type: "binary", op, left: node, right: product() };
+    }
+    return node;
+  }
+  function expression(): Node {
+    let node = addition();
+    if (["<", ">", "=", "<=", ">=", "<>"].includes(tokens[pos])) {
+      const op = tokens[pos++];
+      node = { type: "binary", op, left: node, right: addition() };
     }
     return node;
   }
@@ -117,6 +125,18 @@ export function evaluateFormula(
       case "/":
         if (b.isZero()) throw new Error("Division by zero");
         return a.div(b);
+      case "<":
+        return a.lt(b) ? "1" : "0";
+      case ">":
+        return a.gt(b) ? "1" : "0";
+      case "=":
+        return a.eq(b) ? "1" : "0";
+      case "<=":
+        return a.lte(b) ? "1" : "0";
+      case ">=":
+        return a.gte(b) ? "1" : "0";
+      case "<>":
+        return !a.eq(b) ? "1" : "0";
     }
     throw new Error("Invalid operator");
   }
@@ -127,6 +147,8 @@ export function evaluateFormula(
       return ev(node.args[1]);
     }
   }
+  if (node.name === "IF")
+    return ev(number(ev(node.args[0])).isZero() ? node.args[2] : node.args[1]);
   const args = node.args.map(ev);
   if (node.name === "SUM") return sum(flat(args).map(number));
   if (node.name === "SUBTOTAL") {
@@ -184,8 +206,19 @@ export function scheduleValues(
       return (tables[table[1]] || []).map((row) => row[table[2]] || "");
     const range = /^([A-Z]+)(\d+):([A-Z]+)(\d+)$/.exec(ref);
     if (range) {
-      if (range[1] !== range[3])
-        throw new Error("Unsupported multi-column range");
+      if (range[1] !== range[3]) {
+        if (
+          range[2] !== range[4] ||
+          range[1].length !== 1 ||
+          range[3].length !== 1
+        )
+          throw new Error("Unsupported multi-column range");
+        return Array.from(
+          { length: range[3].charCodeAt(0) - range[1].charCodeAt(0) + 1 },
+          (_, i) =>
+            resolve(String.fromCharCode(range[1].charCodeAt(0) + i) + range[2]),
+        );
+      }
       return Array.from(
         { length: Number(range[4]) - Number(range[2]) + 1 },
         (_, i) => resolve(range[1] + (Number(range[2]) + i)),

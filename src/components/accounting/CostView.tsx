@@ -141,7 +141,14 @@ export function CostView({ type }: { type: keyof typeof templates }) {
               <tbody>
                 {template.rows.map((row) => (
                   <tr key={row.row} className="border-t">
-                    <td className="p-3">{row.label || `بند ${row.row}`}</td>
+                    <td className="p-3">
+                      {row.label || `بند ${row.row}`}
+                      {values["B" + row.row] !== undefined && (
+                        <span className="block font-bold">
+                          {values["B" + row.row]}
+                        </span>
+                      )}
+                    </td>
                     {["C", "D", "E", "F"].map((col) => {
                       const cell = col + row.row;
                       return (

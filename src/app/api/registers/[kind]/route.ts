@@ -45,6 +45,20 @@ export async function POST(
       input.data,
     ) as Prisma.InputJsonObject;
     const row = await locked(user.companyId, async (tx) => {
+      if (
+        ["parties", "employees"].includes(kind) &&
+        (await tx.register.findFirst({
+          where: {
+            companyId: user.companyId,
+            code: input.code,
+            kind: kind === "employees" ? "parties" : "employees",
+          },
+        }))
+      )
+        throw new HttpError(
+          409,
+          "كود الموظف والطرف يجب أن يكون فريدًا بين الدليلين",
+        );
       for (const [key, value] of Object.entries(data))
         if (key.toLowerCase().includes("account") && value) {
           if (
@@ -70,6 +84,27 @@ export async function POST(
       });
       if (existing && existing.version !== input.version)
         throw new HttpError(409, "السجل تغير. أعد تحميل الصفحة قبل التعديل");
+      if (
+        existing &&
+        kind === "employees" &&
+        (await tx.journalLine.count({
+          where: { companyId: user.companyId, party: existing.code },
+        }))
+      ) {
+        const old = existing.data as Record<string, string>;
+        for (const field of [
+          "advanceAccount",
+          "expenseAccount",
+          "payableAccount",
+          "insuranceAccount",
+          "startDate",
+        ])
+          if (old[field] !== data[field])
+            throw new HttpError(
+              409,
+              "حسابات الموظف وتاريخ بداية العمل لا تتغير بعد تسجيل قيود له",
+            );
+      }
       if (
         existing &&
         kind === "items" &&

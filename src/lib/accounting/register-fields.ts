@@ -3,6 +3,18 @@ export const registerFields: Record<
   RegisterKind,
   { key: string; label: string; type?: string; options?: string[] }[]
 > = {
+  employees: [
+    { key: "job", label: "الوظيفة" },
+    { key: "basicSalary", label: "الاساسى", type: "number" },
+    { key: "startDate", label: "بداية العمل", type: "date" },
+    { key: "phone", label: "موبايل" },
+    { key: "address", label: "الاقامة" },
+    { key: "notes", label: "ملاحظات" },
+    { key: "advanceAccount", label: "حساب سلف الموظفين" },
+    { key: "expenseAccount", label: "حساب مصروف المرتب" },
+    { key: "payableAccount", label: "حساب المرتبات المستحقة" },
+    { key: "insuranceAccount", label: "حساب التأمينات المستحقة" },
+  ],
   parties: [
     {
       key: "type",

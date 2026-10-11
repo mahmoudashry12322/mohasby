@@ -26,8 +26,9 @@ async function main() {
     external ||
     "postgresql://postgres:postgres@127.0.0.1:55439/postgres?connection_limit=1";
   const { default: prisma } = await import("../src/lib/prisma");
-  const { createEntry, entrySchema, entryAction } =
-    await import("../src/lib/accounting/ledger");
+  const { createEntry, entrySchema, entryAction } = await import(
+    "../src/lib/accounting/ledger"
+  );
   const { trialBalance } = await import("../src/lib/accounting/reports");
   const { moveStock, stockSchema, stockBalances, closeInventory } =
     await import("../src/lib/accounting/periodic-stock");
@@ -223,8 +224,9 @@ async function main() {
         data: { type: "FARMING", farm: "F", pivot: "P", season: "S" },
       },
     });
-    const { default: templates } =
-      await import("../src/data/cost-templates.json");
+    const { default: templates } = await import(
+      "../src/data/cost-templates.json"
+    );
     const farmEntry = await createEntry(
       actor,
       entrySchema.parse({
@@ -236,7 +238,7 @@ async function main() {
             accountCode: "500",
             debit: "10",
             costCenter: "F1",
-            costItem: templates.FARMING.labels.B13,
+            costItem: templates.FARMING.labels.B14,
           },
           { accountCode: "200", credit: "10" },
         ],
@@ -253,7 +255,7 @@ async function main() {
           new Date("2026-02-01"),
           new Date("2026-02-28"),
         )
-      ).values.D13,
+      ).values.D14,
       "10",
     );
     if (external) {

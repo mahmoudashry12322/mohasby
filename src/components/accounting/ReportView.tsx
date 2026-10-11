@@ -74,6 +74,10 @@ export function ReportView({
     "/api/registers/parties",
     { rows: [] },
   );
+  const employees = useLoad<{ rows: { code: string; name: string }[] }>(
+    "/api/registers/employees",
+    { rows: [] },
+  );
   const centers = useLoad<{ rows: { code: string; name: string }[] }>(
     "/api/registers/cost-centers",
     { rows: [] },
@@ -179,7 +183,7 @@ export function ReportView({
               onChange={(e) => setParty(e.target.value)}
             >
               <option value="">الكل</option>
-              {parties.data.rows.map((a) => (
+              {[...parties.data.rows, ...employees.data.rows].map((a) => (
                 <option key={a.code} value={a.code}>
                   {a.name}
                 </option>

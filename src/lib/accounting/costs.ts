@@ -32,7 +32,7 @@ export async function costSchedule(
     where: {
       companyId_kind_code: {
         companyId,
-        kind: "cost-inputs",
+        kind: "cost-inputs-final",
         code:
           type +
           ":" +
@@ -62,8 +62,8 @@ export async function costSchedule(
     movements.filter((m) => m.entryId).map((m) => [m.entryId!, m]),
   );
   const divisor =
-    type === "IMPORT" && inputs.C38 && D(inputs.C38).gt(0)
-      ? D(inputs.C38)
+    type === "IMPORT" && inputs.C39 && D(inputs.C39).gt(0)
+      ? D(inputs.C39)
       : D(1);
   const table3 = lines.map((line) => {
     const movement = byEntry.get(line.entryId),

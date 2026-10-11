@@ -1,0 +1,432 @@
+[
+  {
+    "cell": "B2",
+    "label": "دليل الحسابات",
+    "sheet": "دليل الحسابات",
+    "group": "accounting",
+    "page": "chart-of-accounts",
+    "labelKey": "chartOfAccounts",
+    "column": 1,
+    "row": 1
+  },
+  {
+    "cell": "D2",
+    "label": "قوائم الحسابات",
+    "sheet": "قوائم الحسابات",
+    "group": "accounting",
+    "page": "account-lists",
+    "labelKey": "accountLists",
+    "column": 2,
+    "row": 1
+  },
+  {
+    "cell": "F2",
+    "label": "حقوق الملكية",
+    "sheet": "حقوق المليكة",
+    "group": "accounting",
+    "page": "statement-of-equity",
+    "labelKey": "statementOfEquity",
+    "column": 3,
+    "row": 1
+  },
+  {
+    "cell": "H2",
+    "label": "توزيع حقوق ملكية",
+    "sheet": "توزيع حقوق الملكية",
+    "group": "accounting",
+    "page": "equity-summary",
+    "labelKey": "equitySummary",
+    "column": 4,
+    "row": 1
+  },
+  {
+    "cell": "J2",
+    "label": "تقرير المديونية",
+    "sheet": "تقرير مديونية",
+    "group": "reports",
+    "page": "outstanding-balances-report",
+    "labelKey": "outstandingBalancesReport",
+    "column": 5,
+    "row": 1
+  },
+  {
+    "cell": "L2",
+    "label": "دليل الاصناف",
+    "sheet": "دليل الاصناف",
+    "group": "setup",
+    "page": "items",
+    "labelKey": "items",
+    "column": 6,
+    "row": 1
+  },
+  {
+    "cell": "N2",
+    "label": "دليل المخازن",
+    "sheet": "دليل المخازن",
+    "group": "setup",
+    "page": "warehouses",
+    "labelKey": "warehouseDirectory",
+    "column": 7,
+    "row": 1
+  },
+  {
+    "cell": "P2",
+    "label": "دليل التكاليف",
+    "sheet": "دليل التكاليف",
+    "group": "setup",
+    "page": "cost-items",
+    "labelKey": "costItems",
+    "column": 8,
+    "row": 1
+  },
+  {
+    "cell": "R2",
+    "label": "بيانات الموظفين",
+    "sheet": "بيانات الموظفين",
+    "group": "hr",
+    "page": "employees",
+    "labelKey": "employees",
+    "column": 9,
+    "row": 1
+  },
+  {
+    "cell": "B4",
+    "label": "ارصدة افتتاحية",
+    "sheet": "ارصدة افتتاحية",
+    "group": "accounting",
+    "page": "opening-balances",
+    "labelKey": "openingBalances",
+    "column": 1,
+    "row": 2
+  },
+  {
+    "cell": "D4",
+    "label": "قيود اليومية",
+    "sheet": "قيود اليومية",
+    "group": "accounting",
+    "page": "journal-entries",
+    "labelKey": "journalEntries",
+    "column": 2,
+    "row": 2
+  },
+  {
+    "cell": "F4",
+    "label": "تدفقات نقدية مباشرة",
+    "sheet": "تدفقات نقدية مباشرة",
+    "group": "accounting",
+    "page": "cash-flow-direct",
+    "labelKey": "cashFlowDirect",
+    "column": 3,
+    "row": 2
+  },
+  {
+    "cell": "H4",
+    "label": "تدفقات نقدية غير مباشرة",
+    "sheet": "تدفقات نقدية  غير مباشرة",
+    "group": "accounting",
+    "page": "cash-flow-indirect",
+    "labelKey": "cashFlowIndirect",
+    "column": 4,
+    "row": 2
+  },
+  {
+    "cell": "J4",
+    "label": "تقرير مراكز التكلفة",
+    "sheet": "تقرير مراكز التكلفة",
+    "group": "reports",
+    "page": "cost-centers-report",
+    "labelKey": "costCentersReport",
+    "column": 5,
+    "row": 2
+  },
+  {
+    "cell": "L4",
+    "label": "اذن اضافة",
+    "sheet": "اذن اضافة",
+    "group": "warehouses",
+    "page": "stock-receipt",
+    "labelKey": "stockReceipt",
+    "column": 6,
+    "row": 2
+  },
+  {
+    "cell": "N4",
+    "label": "اذن صرف",
+    "sheet": "اذن صرف",
+    "group": "warehouses",
+    "page": "stock-issue",
+    "labelKey": "stockIssue",
+    "column": 7,
+    "row": 2
+  },
+  {
+    "cell": "P4",
+    "label": "تكاليف الاستيراد",
+    "sheet": "تكاليف الاستيراد",
+    "group": "costs",
+    "page": "import-costs",
+    "labelKey": "importCosts",
+    "column": 8,
+    "row": 2
+  },
+  {
+    "cell": "R4",
+    "label": "يومية المرتبات",
+    "sheet": "يومية المرتبات",
+    "group": "hr",
+    "page": "payroll-journal",
+    "labelKey": "payrollJournal",
+    "column": 9,
+    "row": 2
+  },
+  {
+    "cell": "B6",
+    "label": "ميزان المراجعة",
+    "sheet": "ميزان المراجعة",
+    "group": "accounting",
+    "page": "trial-balance",
+    "labelKey": "trialBalance",
+    "column": 1,
+    "row": 3
+  },
+  {
+    "cell": "D6",
+    "label": "الاستاذ العام",
+    "sheet": "الاستاذ العام",
+    "group": "accounting",
+    "page": "general-ledger",
+    "labelKey": "generalLedger",
+    "column": 2,
+    "row": 3
+  },
+  {
+    "cell": "F6",
+    "label": "قائمة المركز المالى",
+    "sheet": "المركز المالي",
+    "group": "accounting",
+    "page": "balance-sheet",
+    "labelKey": "balanceSheet",
+    "column": 3,
+    "row": 3
+  },
+  {
+    "cell": "H6",
+    "label": "العملاء",
+    "sheet": "العملاء",
+    "group": "setup",
+    "page": "customers",
+    "labelKey": "customers",
+    "column": 4,
+    "row": 3
+  },
+  {
+    "cell": "J6",
+    "label": "تقرير اليومية",
+    "sheet": "تقارير اليومية",
+    "group": "reports",
+    "page": "daily-report",
+    "labelKey": "dailyReport",
+    "column": 5,
+    "row": 3
+  },
+  {
+    "cell": "L6",
+    "label": "كارتة صنف",
+    "sheet": "كارتة صنف",
+    "group": "warehouses",
+    "page": "item-card",
+    "labelKey": "itemCard",
+    "column": 6,
+    "row": 3
+  },
+  {
+    "cell": "N6",
+    "label": "تقرير مخزن",
+    "sheet": "تقرير مخزن",
+    "group": "warehouses",
+    "page": "warehouse-report",
+    "labelKey": "warehouseReport",
+    "column": 7,
+    "row": 3
+  },
+  {
+    "cell": "P6",
+    "label": "تكاليف الزراعات",
+    "sheet": "تكاليف الزراعات",
+    "group": "costs",
+    "page": "farming-costs",
+    "labelKey": "farmingCosts",
+    "column": 8,
+    "row": 3
+  },
+  {
+    "cell": "R6",
+    "label": "كشف مفردات الراتب",
+    "sheet": "كشف مفردات الراتب",
+    "group": "hr",
+    "page": "payslip",
+    "labelKey": "payslip",
+    "column": 9,
+    "row": 3
+  },
+  {
+    "cell": "B8",
+    "label": "الاستاذ المساعد",
+    "sheet": "الاستاذ المساعد",
+    "group": "accounting",
+    "page": "subsidiary-ledger",
+    "labelKey": "subsidiaryLedger",
+    "column": 1,
+    "row": 4
+  },
+  {
+    "cell": "D8",
+    "label": "اهلاك الاصول",
+    "sheet": "اهلاك اصول",
+    "group": "accounting",
+    "page": "asset-depreciation",
+    "labelKey": "assetDepreciation",
+    "column": 2,
+    "row": 4
+  },
+  {
+    "cell": "F8",
+    "label": "كشف حساب",
+    "sheet": "كشف حساب",
+    "group": "accounting",
+    "page": "account-statement",
+    "labelKey": "accountStatement",
+    "column": 3,
+    "row": 4
+  },
+  {
+    "cell": "H8",
+    "label": "الموردين",
+    "sheet": "الموردين",
+    "group": "setup",
+    "page": "suppliers",
+    "labelKey": "suppliers",
+    "column": 4,
+    "row": 4
+  },
+  {
+    "cell": "J8",
+    "label": "تقرير صنف ثلاجة",
+    "sheet": "تقرير صنف",
+    "group": "cold-storage",
+    "page": "item-report",
+    "labelKey": "itemReport",
+    "column": 5,
+    "row": 4
+  },
+  {
+    "cell": "L8",
+    "label": "ارصدة مخزون",
+    "sheet": "ارصدة المخزون",
+    "group": "warehouses",
+    "page": "ending-inventory-report",
+    "labelKey": "endingInventoryReport",
+    "column": 6,
+    "row": 4
+  },
+  {
+    "cell": "N8",
+    "label": "هالك مخزون",
+    "sheet": "هالك مخزون",
+    "group": "warehouses",
+    "page": "warehouse-waste",
+    "labelKey": "warehouseWaste",
+    "column": 7,
+    "row": 4
+  },
+  {
+    "cell": "P8",
+    "label": "تكاليف انتاج حيوانى",
+    "sheet": "تكاليف انتاج حيوانى",
+    "group": "costs",
+    "page": "animal-costs",
+    "labelKey": "animalCosts",
+    "column": 8,
+    "row": 4
+  },
+  {
+    "cell": "R8",
+    "label": "كشف الرواتب",
+    "sheet": "كشف الرواتب",
+    "group": "hr",
+    "page": "payroll-statement",
+    "labelKey": "payrollStatement",
+    "column": 9,
+    "row": 4
+  },
+  {
+    "cell": "B10",
+    "label": "قائمة دخل",
+    "sheet": "قائمة الدخل",
+    "group": "accounting",
+    "page": "income-statement",
+    "labelKey": "incomeStatement",
+    "column": 1,
+    "row": 5
+  },
+  {
+    "cell": "D10",
+    "label": "ارباح وخسائر",
+    "sheet": "ارباح وخسائر",
+    "group": "accounting",
+    "page": "profit-and-loss",
+    "labelKey": "profitAndLoss",
+    "column": 2,
+    "row": 5
+  },
+  {
+    "cell": "J10",
+    "label": "تقرير حركة ثلاجة",
+    "sheet": "تقرير ثلاجة",
+    "group": "cold-storage",
+    "page": "cold-storage-report",
+    "labelKey": "coldStorageReport",
+    "column": 5,
+    "row": 5
+  },
+  {
+    "cell": "L10",
+    "label": "جرد و تسوية مخزون",
+    "sheet": "جرد وتسوية المخزون",
+    "group": "accounting",
+    "page": "inventory-adjustments",
+    "labelKey": "inventoryAdjustments",
+    "column": 6,
+    "row": 5
+  },
+  {
+    "cell": "P10",
+    "label": "تكاليف التصنيع",
+    "sheet": "تكاليف التصنيع",
+    "group": "costs",
+    "page": "manufacturing-costs",
+    "labelKey": "manufacturingCosts",
+    "column": 8,
+    "row": 5
+  },
+  {
+    "cell": "J12",
+    "label": "تقرير شامل للثلاجات",
+    "sheet": "تقرير شامل للثلاجات",
+    "group": "cold-storage",
+    "page": "cold-storages-report",
+    "labelKey": "coldStoragesReport",
+    "column": 5,
+    "row": 6
+  },
+  {
+    "cell": "P12",
+    "label": "تكاليف التصدير",
+    "sheet": "تكاليف التصدير",
+    "group": "costs",
+    "page": "export-costs",
+    "labelKey": "exportCosts",
+    "column": 8,
+    "row": 6
+  }
+]

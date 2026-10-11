@@ -3,6 +3,18 @@ import { dateOnly, decimal } from "./ledger";
 
 const text = z.string().trim().max(250).default("");
 export const registerSchemas = {
+  employees: z.object({
+    job: text,
+    basicSalary: decimal,
+    startDate: z.union([dateOnly, z.literal("")]).default(""),
+    phone: text,
+    address: text,
+    notes: text,
+    advanceAccount: text,
+    expenseAccount: text,
+    payableAccount: text,
+    insuranceAccount: text,
+  }),
   parties: z.object({
     type: z.enum(["CUSTOMER", "SUPPLIER", "PARTNER"]),
     phone: text,

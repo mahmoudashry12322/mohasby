@@ -2,6 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
+.workbook-home { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.workbook-button { display: flex; align-items: center; justify-content: center; min-height: 56px; padding: 12px 8px; background: #dceaf7; color: #102d44; border: 1px solid transparent; border-radius: 4px; text-align: center; font-size: 14px; font-weight: 700; line-height: 1.6; transition: background .15s, border-color .15s; }
+.workbook-button:hover { background: #c9def1; border-color: #83accf; }
+.workbook-button:focus-visible { outline: 3px solid #2b6da5; outline-offset: 3px; }
+@media (min-width: 640px) { .workbook-home { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .workbook-home { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 18px 16px; } .workbook-button { grid-column: var(--workbook-column); grid-row: var(--workbook-row); min-height: 54px; } }
+
 :root {
   --green-950: #040E0B;
   --green-900: #071C18;

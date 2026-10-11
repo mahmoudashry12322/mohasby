@@ -49,10 +49,7 @@ export default async function GenericDashboardPage({ params }: PageProps) {
   }
 
   // Chart of Accounts module
-  if (
-    group === "accounting" &&
-    (page === "chart-of-accounts" || page === "account-lists")
-  ) {
+  if (group === "accounting" && page === "chart-of-accounts") {
     return <ChartOfAccountsView />;
   }
 

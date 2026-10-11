@@ -20,13 +20,17 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  if (!(await currentUser())) redirect("/login");
+  const user = await currentUser();
+  if (!user) redirect("/login");
   const cookieStore = await cookies();
   const navCookie = cookieStore.get(NAV_COOKIE_NAME)?.value;
   const navState = parseNavCookie(navCookie);
 
   return (
-    <DashboardShell initialCollapsed={navState.collapsed}>
+    <DashboardShell
+      initialCollapsed={navState.collapsed}
+      userRole={user.role}
+    >
       {children}
     </DashboardShell>
   );

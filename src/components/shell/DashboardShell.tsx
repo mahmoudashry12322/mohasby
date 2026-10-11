@@ -11,15 +11,18 @@ import { PageFrame } from "./PageFrame";
 import { BreadcrumbItem } from "./Breadcrumb";
 import { getNavItem } from "@/lib/nav/nav.config";
 import { setNavStateCookie } from "@/lib/nav/nav.state";
+import { AssistantLauncher } from "@/components/assistant/AssistantLauncher";
 
 interface DashboardShellProps {
   children: React.ReactNode;
   initialCollapsed?: boolean;
+  userRole?: string;
 }
 
 export const DashboardShell: React.FC<DashboardShellProps> = ({
   children,
   initialCollapsed = false,
+  userRole = "admin",
 }) => {
   const pathname = usePathname();
   const locale = useLocale();
@@ -170,8 +173,11 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
         />
 
         {/* Page Content */}
-        <PageFrame>{children}</PageFrame>
+        <PageFrame width={isHome ? "full" : "default"}>{children}</PageFrame>
       </div>
+
+      {/* 5. In-App AI Assistant Guide Launcher */}
+      <AssistantLauncher userRole={userRole} />
     </div>
   );
 };

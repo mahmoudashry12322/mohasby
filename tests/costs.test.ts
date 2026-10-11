@@ -24,25 +24,25 @@ test("manufacturing costs roll up direct costs, overhead, unit cost and markup",
       مدين: "100",
       "الحساب الفرعى": "المشتريات",
       "مركز تكلفة تحليلى": "M1",
-      "مركز تكلفة فرعى": t.labels.B8,
+      "مركز تكلفة فرعى": t.labels.B9,
     },
     {
       مدين: "50",
       "الحساب الفرعى": "مصروفات",
       "مركز تكلفة تحليلى": "M1",
-      "مركز تكلفة فرعى": t.labels.B13,
+      "مركز تكلفة فرعى": t.labels.B14,
     },
   ];
   const r = scheduleValues(
     t,
-    { C32: "10", C34: "0.2" },
+    { C33: "10", C35: "0.2" },
     { center: "M1" },
     { Table3: rows },
   );
   assert.deepEqual(r.errors, {});
-  assert.equal(r.values.D31, "150");
-  assert.equal(r.values.D33, "15");
-  assert.equal(r.values.D35, "18");
+  assert.equal(r.values.D32, "150");
+  assert.equal(r.values.D34, "15");
+  assert.equal(r.values.D36, "18");
 });
 test("sumifs uses center and cost item, missing inputs are surfaced", () => {
   const t = templates.IMPORT;
@@ -51,30 +51,30 @@ test("sumifs uses center and cost item, missing inputs are surfaced", () => {
       مدين: "1000",
       "الحساب الفرعى": "المشتريات",
       "مركز تكلفة تحليلى": "IMP1",
-      "مركز تكلفة فرعى": t.labels.B8,
+      "مركز تكلفة فرعى": t.labels.B9,
     },
     {
       مدين: "100",
       "الحساب الفرعى": "مصروفات",
       "مركز تكلفة تحليلى": "IMP1",
-      "مركز تكلفة فرعى": t.labels.B9,
+      "مركز تكلفة فرعى": t.labels.B10,
     },
     {
       مدين: "99999",
       "الحساب الفرعى": "المشتريات",
       "مركز تكلفة تحليلى": "OTHER",
-      "مركز تكلفة فرعى": t.labels.B8,
+      "مركز تكلفة فرعى": t.labels.B9,
     },
   ];
   const result = scheduleValues(
     t,
-    { C12: "0.1", C16: "0.05", C35: "100", C38: "50" },
+    { C13: "0.1", C17: "0.05", C36: "100", C39: "50" },
     { center: "IMP1" },
     { Table3: rows },
   );
-  assert.equal(result.values.D34, "1270.5");
-  assert.equal(result.values.D39, "63525");
-  assert.equal(result.values.D40, "635.25");
+  assert.equal(result.values.D35, "1270.5");
+  assert.equal(result.values.D40, "63525");
+  assert.equal(result.values.D41, "635.25");
   assert.ok(
     Object.keys(
       scheduleValues(t, {}, { center: "IMP1" }, { Table3: rows }).errors,

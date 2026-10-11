@@ -6,6 +6,7 @@ import { createHash, scryptSync } from "node:crypto";
 import fs from "node:fs/promises";
 import assert from "node:assert/strict";
 import { chromium } from "@playwright/test";
+import homeButtons from "../src/data/workbook-home.json";
 const fetch = (url: string, init?: RequestInit) =>
   globalThis.fetch(url, {
     ...init,
@@ -61,6 +62,10 @@ async function main() {
     ["400", "المبيعات", "الإيرادات", "دائن", "قائمة الدخل"],
     ["500", "المشتريات", "المصروفات", "مدين", "قائمة الدخل"],
     ["510", "تغير المخزون", "المصروفات", "مدين", "قائمة الدخل"],
+    ["120", "سلف الموظفين", "الأصول", "مدين", "قائمة المركز المالي"],
+    ["210", "مرتبات مستحقة", "الخصوم", "دائن", "قائمة المركز المالي"],
+    ["220", "تأمينات مستحقة", "الخصوم", "دائن", "قائمة المركز المالي"],
+    ["520", "مصروف المرتبات", "المصروفات", "مدين", "قائمة الدخل"],
   ])
     await prisma.account.create({
       data: {
@@ -152,7 +157,7 @@ async function main() {
     }
     assert.equal(
       (await call("/api/accounts?companyId=999")).data.accounts.length,
-      7,
+      11,
     );
     console.log("HTTP: checking ledger");
     const draft = await call("/api/journal", {
@@ -238,8 +243,8 @@ async function main() {
     assert.equal((await call("/api/stock")).data.balances[0].value, "2000.00");
     const exportCost = await call("/api/costs/EXPORT?center=CE");
     assert.equal(exportCost.status, 200);
-    assert.equal(exportCost.data.values.C7, "100");
-    assert.equal(exportCost.data.values.E7, "2000");
+    assert.equal(exportCost.data.values.C8, "100");
+    assert.equal(exportCost.data.values.E8, "2000");
     for (const report of [
       "trial-balance",
       "ledger",
@@ -262,6 +267,262 @@ async function main() {
       (await call("/api/equity?from=2026-01-01&to=2026-01-31")).status,
       200,
     );
+    console.log("HTTP: checking final workbook payroll and distribution");
+    const employeeData = {
+      job: "محاسب",
+      basicSalary: "6000",
+      startDate: "2025-01-01",
+      advanceAccount: "120",
+      expenseAccount: "520",
+      payableAccount: "210",
+      insuranceAccount: "220",
+    };
+    const employee = await call("/api/registers/employees", {
+      code: "EMP1",
+      name: "موظف الاختبار",
+      data: employeeData,
+    });
+    assert.equal(employee.status, 200, JSON.stringify(employee.data));
+    assert.equal(
+      (
+        await call("/api/registers/parties", {
+          code: "EMP1",
+          name: "كود مكرر",
+          data: { type: "CUSTOMER" },
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await call("/api/journal", {
+          date: "2026-01-01",
+          description: "مستند محجوز",
+          document: "PAYROLL",
+          requestKey: "spoof-payroll-doc",
+          lines: [
+            { accountCode: "120", debit: "1", party: "EMP1" },
+            { accountCode: "100", credit: "1" },
+          ],
+        })
+      ).status,
+      400,
+    );
+    const salaryMovement = {
+      action: "movement",
+      employee: "EMP1",
+      date: "2026-01-03",
+      absenceDays: "1",
+      deductionDays: "0.5",
+      insurance: "120",
+      allowances: "300",
+      bonusDays: "2",
+      overtimeDays: "1",
+      overtimeHours: "4",
+      advance: "1000",
+      cashAccount: "100",
+      requestKey: "http-test-payroll",
+    };
+    const movement = await call("/api/payroll", salaryMovement);
+    assert.equal(movement.status, 200, JSON.stringify(movement.data));
+    assert.equal(
+      (await call("/api/payroll", salaryMovement)).data.movement.id,
+      movement.data.movement.id,
+    );
+    assert.equal(
+      (await call("/api/payroll", { ...salaryMovement, allowances: "301" }))
+        .status,
+      409,
+    );
+    let payroll = await call("/api/payroll?month=2026-01");
+    assert.equal(payroll.data.rows[0].net, "5580.00");
+    assert.equal(payroll.data.rows[0].advanceLines.length, 1);
+    const manualAdvance = await call("/api/journal", {
+      date: "2026-01-10",
+      description: "سلفة مسودة",
+      requestKey: "late-payroll-draft",
+      lines: [
+        { accountCode: "120", debit: "5", party: "EMP1" },
+        { accountCode: "100", credit: "5" },
+      ],
+    });
+    assert.equal(manualAdvance.status, 201);
+    const salaryPost = await call("/api/payroll", {
+      action: "post",
+      employee: "EMP1",
+      month: "2026-01",
+    });
+    assert.equal(salaryPost.status, 200, JSON.stringify(salaryPost.data));
+    assert.equal(
+      (
+        await call("/api/payroll", {
+          action: "post",
+          employee: "EMP1",
+          month: "2026-01",
+        })
+      ).data.entryId,
+      salaryPost.data.entryId,
+    );
+    assert.equal(
+      (
+        await call("/api/journal/" + manualAdvance.data.entry.id, {
+          action: "post",
+        })
+      ).status,
+      409,
+    );
+    assert.equal(
+      (
+        await call("/api/payroll", {
+          ...salaryMovement,
+          requestKey: "after-payroll-post",
+        })
+      ).status,
+      409,
+    );
+    const salaryUpdated = await call("/api/registers/employees", {
+      code: "EMP1",
+      name: "موظف الاختبار",
+      version: employee.data.row.version,
+      data: { ...employeeData, basicSalary: "6500" },
+    });
+    assert.equal(salaryUpdated.status, 200);
+    assert.equal(
+      (await call("/api/payroll?month=2026-01")).data.rows[0].net,
+      "5580.00",
+    );
+    assert.equal(
+      (await call("/api/payroll?month=2027-01")).data.rows[0].net,
+      "6500.00",
+    );
+    assert.equal(
+      (
+        await call("/api/payroll", {
+          action: "movement",
+          employee: "EMP1",
+          date: "2026-02-01",
+          absenceDays: "100",
+          requestKey: "negative-net-salary",
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (
+        await call("/api/payroll", {
+          action: "post",
+          employee: "EMP1",
+          month: "2026-02",
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (await call("/api/payroll", salaryMovement, auditor)).status,
+      401,
+    );
+    const salaryAuditor = await login("auditor@example.test");
+    assert.equal(
+      (await call("/api/payroll", salaryMovement, salaryAuditor)).status,
+      403,
+    );
+    const negativeMovement = await call("/api/payroll", {
+      action: "movement",
+      employee: "EMP1",
+      date: "2026-02-01",
+      absenceDays: "100",
+      requestKey: "negative-net-salary",
+    });
+    const cancelNegative = {
+      action: "void-movement",
+      id: negativeMovement.data.movement.id,
+    };
+    assert.equal((await call("/api/payroll", cancelNegative)).status, 200);
+    assert.equal((await call("/api/payroll", cancelNegative)).status, 200);
+    assert.equal(
+      (await call("/api/payroll?month=2026-02")).data.rows[0].net,
+      "6500.00",
+    );
+    const temporaryAdvance = await call("/api/payroll", {
+      action: "movement",
+      employee: "EMP1",
+      date: "2026-02-02",
+      advance: "100",
+      cashAccount: "100",
+      requestKey: "void-advance-salary",
+    });
+    assert.equal(
+      temporaryAdvance.status,
+      200,
+      JSON.stringify(temporaryAdvance.data),
+    );
+    assert.equal(
+      (await call("/api/payroll?month=2026-02")).data.rows[0].net,
+      "6400.00",
+    );
+    assert.equal(
+      (
+        await call("/api/payroll", {
+          action: "void-movement",
+          id: temporaryAdvance.data.movement.id,
+        })
+      ).status,
+      200,
+    );
+    assert.equal(
+      (await call("/api/payroll?month=2026-02")).data.rows[0].net,
+      "6500.00",
+    );
+    assert.equal(
+      (
+        await call("/api/payroll", {
+          action: "void-movement",
+          id: movement.data.movement.id,
+        })
+      ).status,
+      409,
+    );
+    for (const code of ["P1", "P2"])
+      assert.equal(
+        (
+          await call("/api/registers/parties", {
+            code,
+            name: code,
+            data: { type: "PARTNER" },
+          })
+        ).status,
+        200,
+      );
+    const distributionTemplate = (
+      await import("../src/data/distribution-template.json")
+    ).default;
+    const distributionInputs = Object.fromEntries(
+      Object.keys(distributionTemplate.inputs).map((k) => [k, "0"]),
+    );
+    Object.assign(distributionInputs, {
+      C8: "600",
+      C9: "400",
+      E8: "100",
+      E9: "100",
+      C49: "1000",
+      C52: "600",
+      C55: "20",
+      D55: "40",
+    });
+    const distribution = await call("/api/equity/distribution", {
+      from: "2026-01-01",
+      to: "2026-01-31",
+      first: "P1",
+      second: "P2",
+      version: 0,
+      inputs: distributionInputs,
+    });
+    assert.equal(distribution.status, 200, JSON.stringify(distribution.data));
+    const distributionReport = await call(
+      "/api/equity/distribution?from=2026-01-01&to=2026-01-31",
+    );
+    assert.equal(distributionReport.data.values.C59, "-30");
+    assert.deepEqual(distributionReport.data.errors, {});
     try {
       console.log("HTTP: starting browser");
       browser = await chromium.launch({
@@ -283,6 +544,31 @@ async function main() {
           httpOnly: true,
         },
       ]);
+      await page.goto(base + "/ar/dashboard");
+      const tiles = page.locator("[data-workbook-cell]");
+      await tiles.first().waitFor();
+      assert.equal(await tiles.count(), 43);
+      for (const b of homeButtons) {
+        const tile = page.locator('[data-workbook-cell="' + b.cell + '"]');
+        assert.equal((await tile.textContent())?.trim(), b.label);
+        assert.equal(
+          await tile.getAttribute("href"),
+          "/ar/dashboard/" + b.group + "/" + b.page,
+        );
+        const style = await tile.evaluate((el) => ({
+          column: getComputedStyle(el).gridColumnStart,
+          row: getComputedStyle(el).gridRowStart,
+        }));
+        assert.deepEqual(
+          style,
+          { column: String(b.column), row: String(b.row) },
+          b.cell,
+        );
+      }
+      await page.screenshot({
+        path: "test-results/final-workbook-home.png",
+        fullPage: true,
+      });
       await page.goto(base + "/dashboard/accounting/journal-entries");
       await page.getByRole("heading", { name: "قيد جديد" }).waitFor();
       await page.getByLabel("البيان", { exact: true }).fill("قيد من الواجهة");
@@ -335,7 +621,25 @@ async function main() {
         assert.equal(response?.status(), 200, prefix);
         await page.getByText("الخزينة", { exact: true }).waitFor();
       }
+      await page.goto(base + "/ar/dashboard/hr/payroll-statement");
+      await page.getByLabel("الشهر والسنة").fill("2026-01");
+      await page.getByRole("cell", { name: "5580.00", exact: true }).waitFor();
+      await page.screenshot({
+        path: "test-results/payroll-review.png",
+        fullPage: true,
+      });
       await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(base + "/ar/dashboard");
+      assert.equal(await page.locator("[data-workbook-cell]").count(), 43);
+      assert.ok(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      );
+      await page.screenshot({
+        path: "test-results/final-workbook-home-mobile.png",
+        fullPage: true,
+      });
       await page.goto(base + "/dashboard/warehouses/warehouse-report");
       await page
         .getByRole("cell", { name: "صنف الاختبار", exact: true })

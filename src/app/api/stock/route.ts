@@ -16,19 +16,39 @@ export async function GET(request: Request) {
       p = new URL(request.url).searchParams,
       { from, to } = reportFilter(p);
     return await locked(user.companyId, async (tx) => {
+      const coldCodes =
+        p.get("warehouseType") === "COLD_STORAGE"
+          ? (
+              await tx.register.findMany({
+                where: { companyId: user.companyId, kind: "warehouses" },
+              })
+            )
+              .filter(
+                (w) =>
+                  (w.data as Record<string, string>).type === "COLD_STORAGE",
+              )
+              .map((w) => w.code)
+          : null;
       const scope = {
         companyId: user.companyId,
         ...(p.get("itemId") ? { itemId: p.get("itemId")! } : {}),
-        ...(p.get("warehouse") ? { warehouse: p.get("warehouse")! } : {}),
+        ...(p.get("warehouse")
+          ? { warehouse: p.get("warehouse")! }
+          : coldCodes
+            ? { warehouse: { in: coldCodes } }
+            : {}),
       };
-      const history = await tx.stockMovement.findMany({
-        where: { ...scope, date: { lte: to } },
-        include: { item: true },
-        orderBy: [{ date: "asc" }, { createdAt: "asc" }],
-      });
+      const history = (
+        await tx.stockMovement.findMany({
+          where: { ...scope, date: { lte: to } },
+          include: { item: true },
+          orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+        })
+      ).filter((m) => !coldCodes || coldCodes.includes(m.warehouse));
       const balances = (await stockBalances(user.companyId, to, tx)).filter(
         (b) =>
           (!p.get("itemId") || b.itemId === p.get("itemId")) &&
+          (!coldCodes || coldCodes.includes(b.warehouse)) &&
           (!p.get("warehouse") || b.warehouse === p.get("warehouse")),
       );
       const running = new Map<string, ReturnType<typeof D>>();

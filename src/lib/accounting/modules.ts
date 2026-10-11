@@ -10,7 +10,8 @@ export type Module = {
     | "audit"
     | "document"
     | "cost"
-    | "equity";
+    | "equity"
+    | "payroll";
   kind?: string;
   report?: string;
   view?: string;
@@ -19,6 +20,10 @@ export type Module = {
   costType?: string;
 };
 export const modules: Record<string, Module> = {
+  employees: { type: "register", kind: "employees" },
+  "payroll-journal": { type: "payroll", view: "journal" },
+  "payroll-statement": { type: "payroll", view: "statement" },
+  payslip: { type: "payroll", view: "payslip" },
   documents: { type: "document" },
   "opening-balances": { type: "journal", kind: "OPENING" },
   "journal-entries": { type: "journal" },
@@ -38,10 +43,10 @@ export const modules: Record<string, Module> = {
     report: "financial",
     view: "equity",
   },
-  "equity-summary": { type: "equity" },
+  "equity-summary": { type: "equity", view: "distribution" },
   "cash-flow-direct": { type: "report", report: "cash-flow" },
   "cash-flow-indirect": { type: "report", report: "cash-flow-indirect" },
-  "account-lists": { type: "report", report: "trial-balance" },
+  "account-lists": { type: "register", kind: "lookups", view: "account-lists" },
   "lookup-lists": { type: "register", kind: "lookups" },
   "warehouse-journal": { type: "stock" },
   "warehouse-report": { type: "stock", readOnly: true },
@@ -51,9 +56,9 @@ export const modules: Record<string, Module> = {
   "stock-issue": { type: "stock", kind: "ISSUE" },
   "item-card": { type: "stock", readOnly: true },
   "cold-storage-journal": { type: "stock" },
-  "cold-storage-report": { type: "stock", readOnly: true },
-  "cold-storages-report": { type: "stock", readOnly: true },
-  "item-report": { type: "stock", readOnly: true },
+  "cold-storage-report": { type: "stock", readOnly: true, view: "cold" },
+  "cold-storages-report": { type: "stock", readOnly: true, view: "cold" },
+  "item-report": { type: "stock", readOnly: true, view: "cold" },
   banks: { type: "register", kind: "banks" },
   "bank-transactions": { type: "journal", kind: "CASH" },
   "bank-statement": { type: "report", view: "cash" },

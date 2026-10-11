@@ -3,6 +3,10 @@ import React, { useState } from "react";
 import type { RegisterKind } from "@/lib/accounting/registers";
 import { registerFields } from "@/lib/accounting/register-fields";
 import {
+  employmentDuration,
+  payrollAmounts,
+} from "@/lib/accounting/payroll-calculations";
+import {
   api,
   buttonClass,
   Field,
@@ -202,6 +206,21 @@ export function RegisterView({
                     .filter((f) => r.data[f.key])
                     .map((f) => `${f.label}: ${r.data[f.key]}`)
                     .join("، ")}
+                  {kind === "employees" &&
+                    (() => {
+                      const amounts = payrollAmounts(r.data.basicSalary, []),
+                        tenure = employmentDuration(
+                          r.data.startDate,
+                          new Date().toISOString().slice(0, 10),
+                        );
+                      return (
+                        <p className="mt-2 font-semibold">
+                          اليومية: {amounts.daily} — الساعة: {amounts.hourly} —
+                          مدة الخدمة: {tenure.days} يوم / {tenure.months} شهر /{" "}
+                          {tenure.years} سنة
+                        </p>
+                      );
+                    })()}
                 </td>
                 <td className="p-3">
                   <button
