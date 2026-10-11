@@ -175,7 +175,7 @@ export const LoginForm: React.FC = () => {
             </button>
           </div>
 
-          <div className="relative">
+          <div className="flex items-center gap-2">
             <input
               id="password"
               type={showPassword ? "text" : "password"}
@@ -183,7 +183,7 @@ export const LoginForm: React.FC = () => {
               {...register("password")}
               placeholder={t("passwordPlaceholder")}
               disabled={isLoading}
-              className={`w-full h-12 pe-12 ps-4 rounded-input border bg-white text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-green-700 focus:ring-2 focus:ring-accent-500/30 transition-all font-mono ${
+              className={`flex-1 h-12 px-4 rounded-input border bg-white text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-green-700 focus:ring-2 focus:ring-accent-500/30 transition-all font-mono ${
                 errors.password && touchedFields.password
                   ? "border-danger focus:border-danger focus:ring-danger/20"
                   : "border-border"
@@ -193,7 +193,8 @@ export const LoginForm: React.FC = () => {
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute end-3 top-1/2 -translate-y-1/2 p-1.5 text-ink-400 hover:text-ink-900 transition-colors"
+              className="h-12 w-12 shrink-0 rounded-input border border-border bg-white hover:bg-canvas text-ink-600 hover:text-green-700 transition-colors flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-accent-500/30"
+              title={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
               aria-label={
                 showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"
               }

@@ -56,11 +56,12 @@ export const Topbar: React.FC<TopbarProps> = ({
   const handleLocaleChange = (targetLocale: "ar" | "en") => {
     if (targetLocale === locale) return;
 
+    const cleanPath = pathname.replace(/^\/(ar|en)(?=\/|$)/, "") || "/";
     let targetPath: string;
     if (targetLocale === "en") {
-      targetPath = pathname.startsWith("/en") ? pathname : `/en${pathname}`;
+      targetPath = cleanPath === "/" ? "/en" : `/en${cleanPath}`;
     } else {
-      targetPath = pathname.replace(/^\/en/, "") || "/dashboard";
+      targetPath = cleanPath === "/" ? "/" : cleanPath;
     }
     router.push(targetPath);
   };

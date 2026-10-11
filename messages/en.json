@@ -501,5 +501,31 @@
     "activate": "Enable",
     "level": "Level",
     "companySelector": "Current Company"
+  },
+  "assistant": {
+    "title": "Mohasebi AI Assistant",
+    "subtitle": "Your in-app guide for workflows and accounting",
+    "launcherAria": "Open AI Assistant",
+    "closeAria": "Close AI Assistant",
+    "inputPlaceholder": "Ask about a journal entry, screen, or workflow...",
+    "send": "Send",
+    "stop": "Stop",
+    "clearChat": "New chat",
+    "minimize": "Minimize",
+    "expand": "Expand",
+    "copy": "Copy answer",
+    "copied": "Copied!",
+    "retry": "Retry",
+    "guideNotice": "Guide only: does not access company financial data or perform mutations.",
+    "rolePrefix": "Current role:",
+    "emptyStateTitle": "How can I help you today?",
+    "emptyStateSubtitle": "Choose a quick question or type your own query:",
+    "suggested1": "How do I create a balanced journal entry?",
+    "suggested2": "What is the difference between group and operating accounts?",
+    "suggested3": "How does Weighted Average Cost (WAC) work in inventory?",
+    "suggested4": "What are the stages of a cheque in the portfolio?",
+    "errorGeneric": "Sorry, an error occurred while generating the reply. Please try again.",
+    "errorRateLimit": "Message rate limit exceeded. Please wait a moment.",
+    "typing": "Thinking and drafting response..."
   }
 }

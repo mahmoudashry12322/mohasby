@@ -4,6 +4,10 @@ import { routing } from "./i18n/routing";
 const intlMiddleware = createMiddleware(routing);
 export default function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
+  if (/^\/(en\/ar|ar\/en)(?=\/|$)/.test(pathname)) {
+    const fixed = pathname.replace(/^\/(en\/ar|ar\/en)/, "") || "/";
+    return NextResponse.redirect(new URL(fixed, request.url));
+  }
   const cleanPath = pathname.replace(/^\/(ar|en)(?=\/|$)/, "") || "/";
   if (
     cleanPath.startsWith("/dashboard") &&

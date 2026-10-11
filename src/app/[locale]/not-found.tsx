@@ -28,13 +28,19 @@ export default function NotFoundPage() {
           </p>
         </div>
 
-        <div className="pt-2">
+        <div className="pt-2 space-y-2">
           <Link
-            href="/"
+            href="/dashboard"
             className="w-full inline-flex items-center justify-center gap-2 py-3.5 px-6 rounded-xl bg-green-700 hover:bg-green-900 text-white font-bold text-xs shadow-md transition-colors"
           >
-            <span>العودة إلى الصفحة الرئيسية</span>
+            <span>العودة إلى لوحة التحكم</span>
             <ArrowRight className="w-4 h-4 rotate-180" />
+          </Link>
+          <Link
+            href="/"
+            className="w-full inline-flex items-center justify-center gap-2 py-2 px-6 rounded-xl text-ink-600 hover:text-ink-900 text-xs font-medium transition-colors"
+          >
+            <span>الصفحة الرئيسية للموقع</span>
           </Link>
         </div>
 

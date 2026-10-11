@@ -11,15 +11,18 @@ import { PageFrame } from "./PageFrame";
 import { BreadcrumbItem } from "./Breadcrumb";
 import { getNavItem } from "@/lib/nav/nav.config";
 import { setNavStateCookie } from "@/lib/nav/nav.state";
+import { AssistantLauncher } from "@/components/assistant/AssistantLauncher";
 
 interface DashboardShellProps {
   children: React.ReactNode;
   initialCollapsed?: boolean;
+  userRole?: string;
 }
 
 export const DashboardShell: React.FC<DashboardShellProps> = ({
   children,
   initialCollapsed = false,
+  userRole = "admin",
 }) => {
   const pathname = usePathname();
   const locale = useLocale();
@@ -136,9 +139,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       className="min-h-screen flex bg-canvas text-ink-900 selection:bg-accent-500/30 selection:text-green-950"
     >
       {/* 1. Desktop Animated Sidebar */}
-      <div
-        className={isHome ? "hidden" : "hidden lg:block shrink-0 print:!hidden"}
-      >
+      <div className="hidden lg:block shrink-0 print:!hidden">
         <Sidebar
           activeGroupSlug={activeGroupSlug}
           activePageSlug={activePageSlug}
@@ -174,6 +175,9 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
         {/* Page Content */}
         <PageFrame width={isHome ? "full" : "default"}>{children}</PageFrame>
       </div>
+
+      {/* 5. In-App AI Assistant Guide Launcher */}
+      <AssistantLauncher userRole={userRole} />
     </div>
   );
 };
