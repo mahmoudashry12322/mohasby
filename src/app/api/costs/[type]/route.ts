@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import { body, fail, HttpError, ok } from "@/lib/server/http";
 import { costSchedule, costTemplate } from "@/lib/accounting/costs";
 import { reportFilter } from "@/lib/accounting/reports";
@@ -11,7 +11,7 @@ export async function GET(
 ) {
   const resolved = await params;
   try {
-    const user = await authorize(),
+    const user = await requirePermission(request, "costs.view"),
       p = new URL(request.url).searchParams,
       { from, to } = reportFilter(p);
     return ok(
@@ -36,7 +36,7 @@ export async function POST(
 ) {
   const resolved = await params;
   try {
-    const actor = await authorize(request, true),
+    const actor = await requirePermission(request, "costs.manage"),
       template = costTemplate(resolved.type),
       input = z
         .object({

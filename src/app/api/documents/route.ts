@@ -1,6 +1,7 @@
 import prisma from "@/lib/prisma";
 import { z } from "zod";
 import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import { body, fail, HttpError, ok } from "@/lib/server/http";
 import {
   audit,
@@ -45,7 +46,7 @@ const schema = z.object({
 });
 export async function POST(request: Request) {
   try {
-    const actor = await authorize(request, true),
+    const actor = await requirePermission(request, "documents.post"),
       input = schema.parse(await body(request));
     const result = await locked(actor.companyId, async (tx) => {
       const existing = await tx.stockMovement.findUnique({
@@ -222,7 +223,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const user = await authorize();
+    const user = await requirePermission(undefined, "documents.view");
     const rows = await prisma.stockMovement.findMany({
       where: {
         companyId: user.companyId,

@@ -1,4 +1,4 @@
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import prisma from "@/lib/prisma";
 import { body, fail, ok } from "@/lib/server/http";
 import {
@@ -9,12 +9,15 @@ import {
 import { D, money } from "@/lib/accounting/calculations";
 import { reportFilter } from "@/lib/accounting/reports";
 import { locked } from "@/lib/accounting/ledger";
+
 export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
-    const user = await authorize(),
-      p = new URL(request.url).searchParams,
-      { from, to } = reportFilter(p);
+    const user = await requirePermission(request, "stock.view");
+    const p = new URL(request.url).searchParams;
+    const { from, to } = reportFilter(p);
+
     return await locked(user.companyId, async (tx) => {
       const coldCodes =
         p.get("warehouseType") === "COLD_STORAGE"
@@ -90,9 +93,10 @@ export async function GET(request: Request) {
     return fail(e);
   }
 }
+
 export async function POST(request: Request) {
   try {
-    const user = await authorize(request, true);
+    const user = await requirePermission(request, "stock.movement");
     return ok(
       {
         movement: await moveStock(user, stockSchema.parse(await body(request))),

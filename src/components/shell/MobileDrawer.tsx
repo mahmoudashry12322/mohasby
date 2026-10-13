@@ -9,6 +9,7 @@ import { Logo } from "@/components/brand/Logo";
 import { NAV_GROUPS } from "@/lib/nav/nav.config";
 import { TooltipProvider } from "@/components/ui/Tooltip";
 import { SidebarGroup } from "./SidebarGroup";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -27,6 +28,15 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
   const locale = useLocale();
   const isRtl = locale === "ar";
   const t = useTranslations("shell");
+  const { canPage, isAdmin } = usePermissions();
+
+  const filteredNavGroups = React.useMemo(() => {
+    if (isAdmin) return NAV_GROUPS;
+    return NAV_GROUPS.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canPage(item.slug)),
+    })).filter((group) => group.items.length > 0);
+  }, [isAdmin, canPage]);
 
   const drawerRef = useRef<HTMLDivElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
@@ -149,8 +159,8 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({
 
             <div className="border-t border-white/10 my-2" role="separator" />
 
-            {/* 8 Groups */}
-            {NAV_GROUPS.map((group) => {
+            {/* Filtered Groups based on permissions */}
+            {filteredNavGroups.map((group) => {
               const isGroupOpen = activeGroupSlug === group.slug;
               return (
                 <SidebarGroup

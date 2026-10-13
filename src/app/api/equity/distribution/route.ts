@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import { body, fail, HttpError, ok } from "@/lib/server/http";
 import { audit, dateOnly, locked } from "@/lib/accounting/ledger";
 import { reportFilter } from "@/lib/accounting/reports";
@@ -9,7 +9,7 @@ const signed = z.string().regex(/^-?\d{1,15}(\.\d{1,6})?$/);
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
-    const actor = await authorize(),
+    const actor = await requirePermission(request, "equity.view"),
       { from, to } = reportFilter(new URL(request.url).searchParams),
       code =
         from.toISOString().slice(0, 10) + ":" + to.toISOString().slice(0, 10);
@@ -60,7 +60,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const actor = await authorize(request, true),
+    const actor = await requirePermission(request, "equity.distribute"),
       input = z
         .object({
           from: dateOnly,

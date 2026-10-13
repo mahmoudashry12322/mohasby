@@ -50,6 +50,33 @@
   }
 }
 
+.workbook-home.workbook-repacked {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+@media (min-width: 640px) {
+  .workbook-home.workbook-repacked {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1024px) {
+  .workbook-home.workbook-repacked {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+  }
+}
+@media (min-width: 1280px) {
+  .workbook-home.workbook-repacked {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+  }
+  .workbook-home.workbook-repacked .workbook-button {
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+}
+
 :root {
   --green-950: #040e0b;
   --green-900: #071c18;

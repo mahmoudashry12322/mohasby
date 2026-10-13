@@ -1,12 +1,14 @@
 import { PageGuide } from "@/components/accounting/PageGuide";
 import React from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getNavItem, getAllRouteParams } from "@/lib/nav/nav.config";
 import { modules } from "@/lib/accounting/modules";
 import { ModuleView } from "@/components/accounting/ModuleView";
 import { ChartOfAccountsView } from "@/components/accounting/ChartOfAccountsView";
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
+import { currentUser } from "@/lib/auth/server";
+import { canAccessPage } from "@/lib/auth/permission-map";
 
 interface PageProps {
   params: Promise<{
@@ -47,6 +49,13 @@ export default async function GenericDashboardPage({ params }: PageProps) {
 
   if (!match) {
     notFound();
+  }
+
+  const user = await currentUser();
+  if (!user) redirect("/login");
+
+  if (!canAccessPage(user as any, page)) {
+    redirect(`/${locale}/dashboard/forbidden`);
   }
 
   // Chart of Accounts module

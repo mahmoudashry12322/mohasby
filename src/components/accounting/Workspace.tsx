@@ -70,39 +70,85 @@ export async function api(url: string, data?: unknown, method = "POST") {
   }
   return result;
 }
-export function useLoad<T>(url: string | null, initial: T) {
+export function useLoad<T>(
+  url: string | null,
+  initial: T,
+  options?: { pollInterval?: number },
+) {
   const [data, setData] = useState<T>(initial),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
   const generation = useRef(0);
   const initialRef = useRef(initial);
-  const reload = useCallback(async () => {
-    const current = ++generation.current;
-    if (!url) {
-      setData(initialRef.current);
-      setError("");
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    try {
-      const result = await api(url);
-      if (current === generation.current) {
-        setData(result);
+
+  const reload = useCallback(
+    async (silent = false) => {
+      const current = ++generation.current;
+      if (!url) {
+        setData(initialRef.current);
         setError("");
+        setLoading(false);
+        return;
       }
-    } catch (e) {
-      if (current === generation.current) setError((e as Error).message);
-    } finally {
-      if (current === generation.current) setLoading(false);
-    }
-  }, [url]);
+      if (!silent) setLoading(true);
+      try {
+        const result = await api(url);
+        if (current === generation.current) {
+          setData(result);
+          setError("");
+        }
+      } catch (e) {
+        if (current === generation.current && !silent)
+          setError((e as Error).message);
+      } finally {
+        if (current === generation.current && !silent) setLoading(false);
+      }
+    },
+    [url],
+  );
+
   useEffect(() => {
     void reload();
     return () => {
       generation.current++;
     };
   }, [reload]);
+
+  // Real-time synchronization across company users:
+  // Polls every 10 seconds for visible tabs and refetches immediately when tab refocuses.
+  // Does not interfere with active dirty inputs or draft form entries.
+  useEffect(() => {
+    if (!url) return;
+
+    const intervalMs = options?.pollInterval ?? 10000;
+    const interval = setInterval(() => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        void reload(true);
+      }
+    }, intervalMs);
+
+    const onVisibilityOrFocus = () => {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "visible"
+      ) {
+        void reload(true);
+      }
+    };
+
+    window.addEventListener("visibilitychange", onVisibilityOrFocus);
+    window.addEventListener("focus", onVisibilityOrFocus);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("visibilitychange", onVisibilityOrFocus);
+      window.removeEventListener("focus", onVisibilityOrFocus);
+    };
+  }, [url, reload, options?.pollInterval]);
+
   return { data, error, loading, reload };
 }
 export function Field({

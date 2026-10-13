@@ -1,11 +1,13 @@
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import prisma from "@/lib/prisma";
 import { body, fail, HttpError, ok } from "@/lib/server/http";
 import { createEntry, dateOnly, entrySchema } from "@/lib/accounting/ledger";
+
 export const dynamic = "force-dynamic";
+
 export async function GET(request: Request) {
   try {
-    const user = await authorize();
+    const user = await requirePermission(request, "journal.view");
     const p = new URL(request.url).searchParams;
     const page = Math.max(1, Math.min(100000, Number(p.get("page")) || 1));
     const where = {
@@ -36,9 +38,10 @@ export async function GET(request: Request) {
     return fail(e);
   }
 }
+
 export async function POST(request: Request) {
   try {
-    const actor = await authorize(request, true);
+    const actor = await requirePermission(request, "journal.create");
     const input = entrySchema.parse(await body(request));
     if (["PAYROLL", "PAYROLL_ADVANCE"].includes(input.document))
       throw new HttpError(400, "مستند المرتبات ينشأ من شاشة المرتبات فقط");

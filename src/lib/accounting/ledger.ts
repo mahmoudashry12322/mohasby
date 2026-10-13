@@ -86,13 +86,28 @@ export async function audit(
   entityId: string,
   detail: Prisma.InputJsonValue = {},
 ) {
+  const actorName =
+    (actor as any).name || (actor as any).username || (actor as any).email || actor.id;
+  const actorUsername = (actor as any).username || (actor as any).email || "";
+  const baseDetail =
+    typeof detail === "object" && detail !== null && !Array.isArray(detail)
+      ? (detail as Record<string, unknown>)
+      : { payload: detail };
+
+  const enrichedDetail = {
+    ...baseDetail,
+    actorName,
+    actorUsername,
+    actorRole: actor.role,
+  };
+
   await tx.auditLog.create({
     data: {
       companyId: actor.companyId,
       userId: actor.id,
       action,
       entityId,
-      detail,
+      detail: enrichedDetail as Prisma.InputJsonObject,
     },
   });
 }

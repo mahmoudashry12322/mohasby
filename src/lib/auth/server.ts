@@ -54,17 +54,23 @@ export async function authorize(
 export function publicUser(user: {
   id: string;
   companyId: number;
-  email: string;
+  email: string | null;
+  username?: string | null;
   name: string;
   role: string;
+  permissions?: unknown;
   company: { name: string };
 }) {
   return {
     id: user.id,
     companyId: user.companyId,
     email: user.email,
+    username: user.username || null,
     name: user.name,
     role: user.role,
+    permissions: Array.isArray(user.permissions)
+      ? (user.permissions as string[])
+      : [],
     companyName: user.company.name,
   };
 }

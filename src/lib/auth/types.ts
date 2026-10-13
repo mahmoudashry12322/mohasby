@@ -1,13 +1,18 @@
 export interface User {
   id: string;
-  email: string;
+  email: string | null;
+  username: string | null;
   name: string;
   companyName: string;
-  role: 'admin' | 'accountant' | 'auditor';
+  companyId?: number;
+  role: string;
+  isActive?: boolean;
+  permissions: string[];
 }
 
 export interface AuthCredentials {
-  email: string;
+  identifier?: string;
+  email?: string;
   password: string;
   rememberMe?: boolean;
 }

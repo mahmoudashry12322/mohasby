@@ -25,6 +25,7 @@ import {
 } from "@/lib/nav/recent";
 import arMessages from "../../../messages/ar.json";
 import enMessages from "../../../messages/en.json";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -41,6 +42,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   const tGroup = useTranslations("nav.groups");
   const tItem = useTranslations("nav.items");
   const tShell = useTranslations("shell");
+  const { canPage, isAdmin } = usePermissions();
 
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -53,16 +55,22 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
 
   const recentPages = useRecentPages();
 
-  // Search results
+  // Search results filtered by permissions
   const searchResults = useMemo(() => {
     if (!query.trim()) return [];
-    return searchNavItems(query, arMessages, enMessages);
-  }, [query]);
+    const results = searchNavItems(query, arMessages, enMessages);
+    if (isAdmin) return results;
+    return results.filter((res) => canPage(res.item.slug));
+  }, [query, isAdmin, canPage]);
 
   // Default suggestions when query is empty: recent pages or top essential pages
   const defaultItems = useMemo(() => {
-    if (recentPages.length > 0) {
-      return recentPages.map(({ group, item }: RecentPageDetail) => ({
+    const permittedRecent = isAdmin
+      ? recentPages
+      : recentPages.filter(({ item }) => canPage(item.slug));
+
+    if (permittedRecent.length > 0) {
+      return permittedRecent.map(({ group, item }: RecentPageDetail) => ({
         group,
         item,
         labelAr: (arMessages.nav.items as any)[item.labelKey] || "",
@@ -79,7 +87,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       { group: "accounting", page: "trial-balance" },
       { group: "warehouses", page: "warehouse-journal" },
       { group: "cold-storage", page: "cold-storage-journal" },
-    ];
+    ].filter(({ page }) => isAdmin || canPage(page));
 
     return defaultSlugs
       .map(({ group, page }) => {

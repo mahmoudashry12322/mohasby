@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/prisma";
 import { authorize } from "@/lib/auth/server";
-import { body, fail, ok } from "@/lib/server/http";
+import { can, requirePermission } from "@/lib/auth/permissions.server";
+import { body, fail, HttpError, ok } from "@/lib/server/http";
 import {
   accountSchema,
   addAccount,
@@ -9,7 +10,7 @@ import {
 } from "@/lib/accounting/accounts";
 
 import { locked } from "@/lib/accounting/ledger";
-// Helper function to build a hierarchical tree from flat accounts list
+
 export interface AccountNode {
   id: number;
   companyId: number;
@@ -53,8 +54,27 @@ function buildTree(accounts: AccountNode[]): AccountNode[] {
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
-    const actor = await authorize(request, request.method !== "GET");
+    const actor = await authorize(request);
     const companyId = actor.companyId;
+
+    const act = actor as any;
+    const hasViewPerm = can(act, "accounts.view");
+    const isLookup = searchParams.get("lookup") === "true";
+    const hasLookupNeed =
+      can(act, "journal.create") ||
+      can(act, "journal.edit") ||
+      can(act, "documents.create") ||
+      can(act, "stock.movement") ||
+      can(act, "assets.manage") ||
+      can(act, "payroll.post") ||
+      can(act, "banks.manage");
+
+    if (!hasViewPerm && !isLookup && !hasLookupNeed) {
+      throw new HttpError(403, "ليس لديك صلاحية: دليل الحسابات — عرض");
+    }
+
+    const stripBalances = !hasViewPerm;
+
     const accountClass = searchParams.get("class");
     const search = searchParams.get("search")?.trim();
     const asFlat = searchParams.get("flat") === "true";
@@ -62,42 +82,63 @@ export async function GET(request: NextRequest) {
     const rawAccounts = await locked(companyId, (tx) =>
       accountBalances(tx, companyId),
     );
-    const accounts: AccountNode[] = rawAccounts.filter(
-      (a) =>
-        (!accountClass ||
-          accountClass === "all" ||
-          a.accountClass === accountClass) &&
-        (!search ||
-          [a.code, a.name, a.nameEn || ""].some((v) =>
-            v.toLowerCase().includes(search.toLowerCase()),
-          )),
-    );
+
+    const accounts: AccountNode[] = rawAccounts
+      .filter(
+        (a) =>
+          (!accountClass ||
+            accountClass === "all" ||
+            a.accountClass === accountClass) &&
+          (!search ||
+            [a.code, a.name, a.nameEn || ""].some((v) =>
+              v.toLowerCase().includes(search.toLowerCase()),
+            )),
+      )
+      .map((a) =>
+        stripBalances
+          ? {
+              ...a,
+              balance: 0,
+            }
+          : a,
+      );
+
     const statsRaw = [
       "الأصول",
       "الخصوم",
       "حقوق الملكية",
       "الإيرادات",
       "المصروفات",
-    ].map((accountClass) => ({
-      accountClass,
+    ].map((cls) => ({
+      accountClass: cls,
       _count: {
-        id: rawAccounts.filter((a) => a.accountClass === accountClass).length,
+        id: rawAccounts.filter((a) => a.accountClass === cls).length,
       },
     }));
-    const stats = {
-      total: accounts.length,
-      assets: statsRaw.find((s) => s.accountClass === "الأصول")?._count.id || 0,
-      liabilities:
-        statsRaw.find((s) => s.accountClass === "الخصوم")?._count.id || 0,
-      equity:
-        statsRaw.find((s) => s.accountClass === "حقوق الملكية")?._count.id || 0,
-      revenue:
-        statsRaw.find((s) => s.accountClass === "الإيرادات")?._count.id || 0,
-      expenses:
-        statsRaw.find((s) => s.accountClass === "المصروفات")?._count.id || 0,
-    };
 
-    if (asFlat || search) {
+    const stats = stripBalances
+      ? {
+          total: accounts.length,
+          assets: 0,
+          liabilities: 0,
+          equity: 0,
+          revenue: 0,
+          expenses: 0,
+        }
+      : {
+          total: accounts.length,
+          assets: statsRaw.find((s) => s.accountClass === "الأصول")?._count.id || 0,
+          liabilities:
+            statsRaw.find((s) => s.accountClass === "الخصوم")?._count.id || 0,
+          equity:
+            statsRaw.find((s) => s.accountClass === "حقوق الملكية")?._count.id || 0,
+          revenue:
+            statsRaw.find((s) => s.accountClass === "الإيرادات")?._count.id || 0,
+          expenses:
+            statsRaw.find((s) => s.accountClass === "المصروفات")?._count.id || 0,
+        };
+
+    if (asFlat || search || stripBalances) {
       return NextResponse.json({
         success: true,
         stats,
@@ -120,7 +161,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const actor = await authorize(request, true);
+    const actor = await requirePermission(request, "accounts.create");
     const account = await addAccount(
       actor,
       accountSchema.parse(await body(request)),

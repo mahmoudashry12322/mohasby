@@ -10,6 +10,7 @@ import { NAV_GROUPS, NavGroup } from '@/lib/nav/nav.config';
 import { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/Tooltip';
 import { SidebarGroup } from './SidebarGroup';
 import { SidebarFlyout } from './SidebarFlyout';
+import { usePermissions } from '@/components/auth/PermissionsProvider';
 
 interface SidebarProps {
   activeGroupSlug?: string;
@@ -30,9 +31,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const locale = useLocale();
   const isRtl = locale === 'ar';
   const t = useTranslations('shell');
+  const { canPage, isAdmin } = usePermissions();
 
   const homeHref = locale === 'ar' ? '/dashboard' : '/en/dashboard';
   const isHomeActive = pathname === homeHref || pathname === `${homeHref}/`;
+
+  const filteredNavGroups = React.useMemo(() => {
+    if (isAdmin) return NAV_GROUPS;
+    return NAV_GROUPS.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => canPage(item.slug)),
+    })).filter((group) => group.items.length > 0);
+  }, [isAdmin, canPage]);
 
   // Flyout state when collapsed
   const [openFlyoutGroup, setOpenFlyoutGroup] = useState<NavGroup | null>(null);
@@ -153,8 +163,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <div className="border-t border-white/10 my-2" role="separator" />
 
-          {/* 8 Groups */}
-          {NAV_GROUPS.map((group) => {
+          {/* Filtered Groups based on permissions */}
+          {filteredNavGroups.map((group) => {
             const isGroupOpen = activeGroupSlug === group.slug;
             return (
               <SidebarGroup
