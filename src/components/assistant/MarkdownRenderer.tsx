@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { workbookPage } from "@/lib/accounting/workbook-guides";
 import React, { useMemo } from "react";
 
 interface MarkdownRendererProps {
@@ -18,13 +20,16 @@ interface MarkdownRendererProps {
  *
  * Avoids heavy external dependencies and dangerouslySetInnerHTML.
  */
-export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) => {
+export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
+  content,
+}) => {
   const elements = useMemo(() => {
     if (!content) return null;
 
     const lines = content.split("\n");
     const result: React.ReactNode[] = [];
-    let listBuffer: { type: "ol" | "ul"; items: React.ReactNode[] } | null = null;
+    let listBuffer: { type: "ol" | "ul"; items: React.ReactNode[] } | null =
+      null;
 
     const flushList = (key: string) => {
       if (!listBuffer) return;
@@ -85,6 +90,35 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
       return parts;
     };
 
+    const renderLinks = (text: string, prefix: string): React.ReactNode[] => {
+      const parts: React.ReactNode[] = [];
+      const pattern = /\[([^\]\n]+)\]\(([^)\s]+)\)/g;
+      let end = 0,
+        match: RegExpExecArray | null;
+      while ((match = pattern.exec(text))) {
+        parts.push(text.slice(end, match.index));
+        const valid =
+          /^\/(?:(?:ar|en)\/)?dashboard\/[a-z-]+\/[a-z-]+$/.test(match[2]) &&
+          workbookPage(match[2]);
+        parts.push(
+          valid ? (
+            <Link
+              key={`${prefix}-link-${match.index}`}
+              href={match[2]}
+              className="font-semibold text-green-800 underline underline-offset-2"
+            >
+              {match[1]}
+            </Link>
+          ) : (
+            match[0]
+          ),
+        );
+        end = pattern.lastIndex;
+      }
+      parts.push(text.slice(end));
+      return parts;
+    };
+
     const renderBold = (text: string, prefix: string): React.ReactNode[] => {
       const parts: React.ReactNode[] = [];
       const boldRegex = /\*\*([^*]+)\*\*/g;
@@ -93,7 +127,12 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
 
       while ((match = boldRegex.exec(text)) !== null) {
         if (match.index > lastIdx) {
-          parts.push(text.slice(lastIdx, match.index));
+          parts.push(
+            ...renderLinks(
+              text.slice(lastIdx, match.index),
+              `${prefix}-${lastIdx}`,
+            ),
+          );
         }
         parts.push(
           <strong
@@ -107,7 +146,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({ content }) =
       }
 
       if (lastIdx < text.length) {
-        parts.push(text.slice(lastIdx));
+        parts.push(...renderLinks(text.slice(lastIdx), `${prefix}-end`));
       }
 
       return parts;

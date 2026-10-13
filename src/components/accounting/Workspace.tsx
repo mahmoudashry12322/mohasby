@@ -6,28 +6,84 @@ export const inputClass =
 export const buttonClass =
   "rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-900 disabled:opacity-50";
 export async function api(url: string, data?: unknown, method = "POST") {
-  const response = await fetch(
-    url,
-    data === undefined
-      ? { cache: "no-store" }
-      : {
-          method,
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        },
-  );
-  const result = await response.json();
-  if (!response.ok || !result.success)
-    throw new Error(result.error || "تعذر الاتصال بالخادم");
+  let response: Response;
+  try {
+    response = await fetch(
+      url,
+      data === undefined
+        ? { cache: "no-store" }
+        : {
+            method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          },
+    );
+  } catch {
+    throw new Error(
+      "انقطع الاتصال. البيانات ما زالت في النموذج؛ راجع السجلات قبل إعادة محاولة الحفظ.",
+    );
+  }
+  let result;
+  try {
+    result = await response.json();
+  } catch {
+    throw new Error(
+      "تعذر قراءة رد الخادم. البيانات ما زالت في النموذج؛ راجع السجلات قبل إعادة محاولة الحفظ.",
+    );
+  }
+  if (response.status === 401)
+    throw new Error(
+      "انتهت جلسة الدخول. احتفظ بالبيانات وسجّل الدخول في تبويب آخر ثم أعد المحاولة.",
+    );
+  if (!response.ok || !result.success) {
+    const labels: Record<string, string> = {
+      date: "التاريخ",
+      description: "البيان",
+      accountCode: "الحساب",
+      debit: "مدين",
+      credit: "دائن",
+      quantity: "الكمية",
+      warehouse: "المخزن",
+      itemId: "الصنف",
+      name: "الاسم",
+      code: "الكود",
+      employee: "الموظف",
+      cashAccount: "حساب صرف السلفة",
+      unitCost: "تكلفة الوحدة",
+    };
+    const details = Array.isArray(result.issues)
+      ? result.issues
+          .slice(0, 5)
+          .map((issue: { path: string }) => {
+            const parts = String(issue.path).split(".");
+            return (
+              (parts[0] === "lines" ? `السطر ${Number(parts[1]) + 1}: ` : "") +
+              (labels[parts.at(-1)!] || "حقل غير مكتمل")
+            );
+          })
+          .join("، ")
+      : "";
+    throw new Error(
+      (result.error || "تعذر تنفيذ العملية") +
+        (details ? " — راجع: " + details : ""),
+    );
+  }
   return result;
 }
-export function useLoad<T>(url: string, initial: T) {
+export function useLoad<T>(url: string | null, initial: T) {
   const [data, setData] = useState<T>(initial),
     [error, setError] = useState(""),
     [loading, setLoading] = useState(true);
   const generation = useRef(0);
+  const initialRef = useRef(initial);
   const reload = useCallback(async () => {
     const current = ++generation.current;
+    if (!url) {
+      setData(initialRef.current);
+      setError("");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const result = await api(url);
@@ -58,7 +114,7 @@ export function Field({
 }) {
   const id = React.useId();
   return (
-    <label className="block space-y-1 text-sm text-ink-700">
+    <label className="relative block space-y-1 text-sm text-ink-700">
       <span id={id}>{label}</span>
       {React.isValidElement(children)
         ? React.cloneElement(
@@ -148,8 +204,13 @@ export function DataTable({
         </button>
         <span className="self-center text-sm">{rows.length} سجل</span>
       </div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-white">
-        <table className="w-full text-right text-sm">
+      <div
+        className="max-w-full overflow-x-auto rounded-xl border border-border bg-white"
+        tabIndex={0}
+        role="region"
+        aria-label="جدول النتائج"
+      >
+        <table className="w-full border-collapse text-right text-sm">
           <thead className="bg-green-50 text-green-900">
             <tr>
               {columns.map((c) => (
@@ -168,7 +229,7 @@ export function DataTable({
                 {columns.map((c) => (
                   <td
                     key={c.key}
-                    className="whitespace-nowrap p-3 tabular-nums"
+                    className="whitespace-nowrap border-x border-green-100 p-3 tabular-nums"
                   >
                     {String(row[c.key] ?? "")}
                   </td>

@@ -1,4 +1,5 @@
 "use client";
+import { EntrySheet } from "./EntrySheet";
 import React, { useEffect, useState } from "react";
 import {
   api,
@@ -89,35 +90,44 @@ export function EquityView({ title }: { title: string }) {
         تسوية المخزون قبل اعتماد الربح.
       </p>
       <form onSubmit={save} className="space-y-3 print:hidden">
-        {result.data.rows.map((p) => (
-          <details className="rounded-xl border bg-white p-4" key={p.code}>
-            <summary className="cursor-pointer font-bold">
-              مدخلات {p.name}
-            </summary>
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <EntrySheet label="مدخلات الأرباح والخسائر للشركاء">
+          <thead>
+            <tr>
+              <th>الشريك</th>
               {fields.map(([key, label]) => (
-                <Field key={key} label={label}>
-                  <input
-                    className={inputClass}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={inputs[p.code]?.[key] || ""}
-                    onChange={(e) =>
-                      setInputs({
-                        ...inputs,
-                        [p.code]: {
-                          ...inputs[p.code],
-                          [key]: e.target.value || "0",
-                        },
-                      })
-                    }
-                  />
-                </Field>
+                <th key={key}>{label}</th>
               ))}
-            </div>
-          </details>
-        ))}
+            </tr>
+          </thead>
+          <tbody>
+            {result.data.rows.map((p) => (
+              <tr key={p.code}>
+                <td className="computed whitespace-nowrap">{p.name}</td>
+                {fields.map(([key, label]) => (
+                  <td key={key} className="min-w-36">
+                    <input
+                      aria-label={`${label} — ${p.name}`}
+                      className={inputClass}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={inputs[p.code]?.[key] || ""}
+                      onChange={(e) =>
+                        setInputs({
+                          ...inputs,
+                          [p.code]: {
+                            ...inputs[p.code],
+                            [key]: e.target.value || "0",
+                          },
+                        })
+                      }
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </EntrySheet>
         <button
           disabled={busy || result.loading || !result.data.rows.length}
           className={buttonClass}

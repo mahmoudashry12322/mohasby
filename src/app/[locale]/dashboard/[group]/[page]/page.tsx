@@ -1,3 +1,4 @@
+import { PageGuide } from "@/components/accounting/PageGuide";
 import React from "react";
 import { notFound } from "next/navigation";
 import { getNavItem, getAllRouteParams } from "@/lib/nav/nav.config";
@@ -50,7 +51,12 @@ export default async function GenericDashboardPage({ params }: PageProps) {
 
   // Chart of Accounts module
   if (group === "accounting" && page === "chart-of-accounts") {
-    return <ChartOfAccountsView />;
+    return (
+      <>
+        <PageGuide page={page} locale={locale} />
+        <ChartOfAccountsView />
+      </>
+    );
   }
 
   const tItems = await getTranslations({ locale, namespace: "nav.items" });
@@ -64,5 +70,10 @@ export default async function GenericDashboardPage({ params }: PageProps) {
 
   const workflow = modules[page];
   if (!workflow) notFound();
-  return <ModuleView key={page} module={workflow} title={title} />;
+  return (
+    <>
+      <PageGuide page={page} locale={locale} />
+      <ModuleView key={page} module={workflow} title={title} />
+    </>
+  );
 }

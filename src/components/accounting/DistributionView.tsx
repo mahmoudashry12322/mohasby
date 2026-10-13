@@ -92,6 +92,7 @@ export function DistributionView() {
         <RegisterView kind="parties" partyType="PARTNER" title="الشركاء" />
       </details>
       <form
+        id="distribution-inputs"
         onSubmit={save}
         className="space-y-4 rounded-xl border bg-white p-5 print:hidden"
       >
@@ -139,21 +140,10 @@ export function DistributionView() {
           التسوية لشريكين بالمناصفة كما في النموذج. أدخل التمويل والمسحوبات وحصص
           الربح بإشارتها المحاسبية؛ النتائج تحليلية ولا ترحّل قيدًا تلقائيًا.
         </p>
-        <div className="grid gap-4 md:grid-cols-3">
-          {Object.entries(template.inputs).map(([cell, label]) => (
-            <Field key={cell} label={label}>
-              <input
-                type="number"
-                step="0.000001"
-                className={inputClass}
-                value={inputs[cell] ?? ""}
-                onChange={(e) =>
-                  setInputs({ ...inputs, [cell]: e.target.value })
-                }
-              />
-            </Field>
-          ))}
-        </div>
+        <p className="text-sm">
+          أدخل التمويل والمسحوبات وحصص الربح في الخلايا البيضاء داخل قائمة
+          التوزيع أدناه، ثم احفظ لإعادة الحساب.
+        </p>
         <button className={buttonClass} disabled={busy}>
           حفظ وحساب التوزيع
         </button>
@@ -165,7 +155,7 @@ export function DistributionView() {
         طباعة / PDF
       </button>
       <div className="overflow-x-auto border rounded-xl bg-white">
-        <table className="w-full text-sm text-right">
+        <table className="entry-sheet w-full text-sm text-right">
           <caption className="p-4 font-bold">
             قائمة توزيع حقوق الملكية — {from} / {to}
           </caption>
@@ -183,7 +173,24 @@ export function DistributionView() {
                   const cell = col + row;
                   return (
                     <td key={cell} className="p-3" data-cell={cell}>
-                      {value(cell)}
+                      {(template.inputs as Record<string, string>)[cell] ? (
+                        <input
+                          disabled={busy || r.loading}
+                          form="distribution-inputs"
+                          aria-label={
+                            (template.inputs as Record<string, string>)[cell]
+                          }
+                          type="number"
+                          step="0.000001"
+                          className={inputClass + " min-w-36"}
+                          value={inputs[cell] ?? ""}
+                          onChange={(e) =>
+                            setInputs({ ...inputs, [cell]: e.target.value })
+                          }
+                        />
+                      ) : (
+                        value(cell)
+                      )}
                       {r.data.errors[cell] && (
                         <span className="block text-amber-800">
                           {r.data.errors[cell]}

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { usePathname } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { Sidebar } from "./Sidebar";
@@ -33,6 +33,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   const [isSidebarCollapsed, setIsSidebarCollapsed] =
     useState(initialCollapsed);
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const closeMobileDrawer = useCallback(() => setIsMobileDrawerOpen(false), []);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
@@ -151,7 +152,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       {/* 2. Mobile & Tablet Drawer (< 1024px) */}
       <MobileDrawer
         isOpen={isMobileDrawerOpen}
-        onClose={() => setIsMobileDrawerOpen(false)}
+        onClose={closeMobileDrawer}
         activeGroupSlug={activeGroupSlug}
         activePageSlug={activePageSlug}
       />

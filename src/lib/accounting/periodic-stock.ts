@@ -18,6 +18,17 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
 export const stockSchema = z.object({
+  logistics: z
+    .object({
+      shipment: z.string().max(200),
+      truck: z.string().max(100),
+      farm: z.string().max(200),
+      pivot: z.string().max(200),
+      color: z.string().max(100),
+      notes: z.string().max(1000),
+    })
+    .optional(),
+  weigh: z.object({ weight: decimal, tare: decimal, bags: decimal }).optional(),
   date: dateOnly,
   itemId: z.string().min(1),
   warehouse: z.string().min(1),
@@ -200,7 +211,12 @@ export async function moveStockTx(
   )
     throw new HttpError(400, "مركز التكلفة غير موجود");
   const config = item.data as Record<string, string>,
-    q = D(input.quantity);
+    q = input.weigh
+      ? D(input.weigh.weight).sub(input.weigh.tare)
+      : D(input.quantity);
+  if (input.weigh && config.unit !== "kg")
+    throw new HttpError(400, "إذن الوزن يحتاج صنفًا بوحدة كيلوجرام");
+  if (q.lte(0)) throw new HttpError(400, "الوزن يجب أن يكون أكبر من الفارغ");
   if (q.decimalPlaces() > 3) throw new HttpError(400, "دقة الكمية ثلاث منازل");
   const direction = ["OPENING", "RECEIPT", "RETURN_IN", "COUNT_GAIN"].includes(
     input.kind,
@@ -306,6 +322,9 @@ export async function moveStockTx(
       entryId,
       requestKey: input.requestKey,
       metadata: {
+        ...(input.logistics ? { logistics: input.logistics } : {}),
+        ...(input.weigh ? { stockWeigh: input.weigh } : {}),
+        description: input.description,
         costCenter: input.costCenter,
         costItem: input.costItem,
         stockRequestHash: requestDigest(input),

@@ -1,4 +1,5 @@
 "use client";
+import { EntryRow } from "./EntrySheet";
 import React, { useState } from "react";
 import {
   api,
@@ -152,7 +153,7 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
             أجر اليوم = الأساسي ÷ 30، وأجر الساعة = أجر اليوم ÷ 8. السلفة تُرحّل
             إلى الدفاتر عند الحفظ.
           </p>
-          <div className="grid gap-4 md:grid-cols-3">
+          <EntryRow>
             <Field label="تاريخ الحركة">
               <input
                 required
@@ -193,7 +194,7 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
                   ))}
               </select>
             </Field>
-          </div>
+          </EntryRow>
           <button className={buttonClass} disabled={busy || !employee}>
             حفظ حركة المرتب
           </button>
