@@ -29,8 +29,8 @@ type Line = {
 };
 const emptyLine = (): Line => ({
   accountCode: "",
-  debit: "0",
-  credit: "0",
+  debit: "",
+  credit: "",
   description: "",
   party: "",
   costCenter: "",
@@ -107,7 +107,13 @@ export function JournalView({
       setDocument(value.document);
       setReference(value.reference);
       setKey(value.requestKey);
-      setLines(value.lines);
+      setLines(
+        value.lines.map((l) => ({
+          ...l,
+          debit: l.debit === "0" ? "" : (l.debit ?? ""),
+          credit: l.credit === "0" ? "" : (l.credit ?? ""),
+        })),
+      );
     },
   );
   function change(i: number, field: keyof Line, value: string) {
@@ -506,12 +512,13 @@ export function JournalView({
                         inputMode="decimal"
                         min="0"
                         step="0.01"
-                        className={
+                        placeholder=""
+                        className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
                           fitScreen
                             ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8 text-center font-mono"
                             : inputClass
-                        }
-                        value={l[key]}
+                        }`}
+                        value={l[key] === "0" ? "" : (l[key] ?? "")}
                         onChange={(e) => change(i, key, e.target.value)}
                       />
                     </td>
