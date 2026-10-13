@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { costSheetRows } from "@/lib/accounting/sheet-rows";
 import templates from "@/data/cost-templates.json";
 import {
   api,
@@ -87,26 +88,15 @@ export function CostView({ type }: { type: keyof typeof templates }) {
       {center && (
         <>
           <form
+            id={`cost-inputs-${type}`}
             onSubmit={save}
             className="rounded-xl border bg-white p-5 space-y-4"
           >
             <h2 className="font-bold">مدخلات التقرير</h2>
-            <div className="grid gap-4 md:grid-cols-3">
-              {Object.entries(template.inputs).map(([cell, label]) => (
-                <Field key={cell} label={`${label} (${cell})`}>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.000001"
-                    className={inputClass}
-                    value={inputs[cell] ?? ""}
-                    onChange={(e) =>
-                      setInputs({ ...inputs, [cell]: e.target.value })
-                    }
-                  />
-                </Field>
-              ))}
-            </div>
+            <p className="text-sm">
+              أدخل القيم في الخلايا البيضاء داخل الجدول أدناه، ثم احفظ لإعادة
+              حساب النتائج المظللة.
+            </p>
             <button disabled={busy} className={buttonClass}>
               حفظ المدخلات وحساب التقرير
             </button>
@@ -127,7 +117,7 @@ export function CostView({ type }: { type: keyof typeof templates }) {
             </div>
           )}
           <div className="overflow-x-auto rounded-xl border bg-white">
-            <table className="w-full text-sm">
+            <table className="entry-sheet w-full text-sm">
               <thead className="bg-green-50">
                 <tr>
                   <th className="p-3 text-right">البند</th>
@@ -139,7 +129,7 @@ export function CostView({ type }: { type: keyof typeof templates }) {
                 </tr>
               </thead>
               <tbody>
-                {template.rows.map((row) => (
+                {costSheetRows(template).map((row) => (
                   <tr key={row.row} className="border-t">
                     <td className="p-3">
                       {row.label || `بند ${row.row}`}
@@ -157,7 +147,29 @@ export function CostView({ type }: { type: keyof typeof templates }) {
                           className="p-3 tabular-nums"
                           title={issues[cell] || cell}
                         >
-                          {values[cell] ?? inputs[cell] ?? ""}
+                          {(template.inputs as Record<string, string>)[cell] ? (
+                            <input
+                              disabled={busy}
+                              form={`cost-inputs-${type}`}
+                              aria-label={
+                                (template.inputs as Record<string, string>)[
+                                  cell
+                                ]
+                              }
+                              type="number"
+                              min="0"
+                              step="0.000001"
+                              className={inputClass + " min-w-36"}
+                              value={inputs[cell] ?? ""}
+                              onChange={(e) =>
+                                setInputs({ ...inputs, [cell]: e.target.value })
+                              }
+                            />
+                          ) : (
+                            <span className="block rounded bg-slate-50 p-2">
+                              {values[cell] ?? inputs[cell] ?? ""}
+                            </span>
+                          )}
                           {issues[cell] && (
                             <span className="block max-w-48 whitespace-normal text-xs text-amber-800">
                               {issues[cell]}

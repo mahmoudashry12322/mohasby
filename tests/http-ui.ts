@@ -96,6 +96,7 @@ async function main() {
         DATABASE_URL: url,
         APP_URL: "http://localhost:3099",
         NODE_ENV: "production",
+        ASSISTANT_PROVIDER: "mock",
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -197,6 +198,19 @@ async function main() {
       body: "{}",
     });
     assert.equal(csrf.status, 403);
+    const assistant = await fetch(base + "/api/assistant/chat", {
+      method: "POST",
+      headers: { cookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        message: "كيف أدخل قيدًا؟",
+        locale: "ar",
+        currentRoute: "/ar/dashboard/accounting/journal-entries",
+      }),
+    });
+    assert.equal(assistant.status, 200);
+    const stream = await assistant.text();
+    assert.match(stream, /data: \[DONE\]/);
+    assert.match(stream, /مرحباً/);
     console.log("HTTP: checking documents");
     await call("/api/registers/parties", {
       code: "V1",
@@ -523,6 +537,67 @@ async function main() {
     );
     assert.equal(distributionReport.data.values.C59, "-30");
     assert.deepEqual(distributionReport.data.errors, {});
+    const incomplete = await call("/api/journal", {
+      date: "2026-01-01",
+      description: "ناقص",
+      requestKey: "incomplete-http-test",
+      lines: [
+        { accountCode: "100", debit: "1" },
+        { accountCode: "", credit: "1" },
+      ],
+    });
+    assert.equal(incomplete.status, 400);
+    const weighedDoc = await call("/api/documents", {
+      type: "PURCHASE",
+      date: "2026-01-04",
+      itemId: item.data.row.id,
+      warehouse: "W1",
+      party: "V1",
+      accountCode: "200",
+      quantity: "0",
+      unitPrice: "0",
+      reference: "WEIGH-1",
+      description: "مستند وزن اختباري",
+      requestKey: "ux-weighted-document",
+      weigh: {
+        weight: "1000",
+        tare: "100",
+        bags: "10",
+        bagDeduction: "2",
+        discountRate: "0.05",
+        inspectionRate: "0.1",
+        pricePerTonne: "1000",
+      },
+    });
+    assert.equal(weighedDoc.status, 200, JSON.stringify(weighedDoc.data));
+    const statement = await call("/api/reports/ledger?account=200&party=V1");
+    const weightRow = statement.data.rows.find(
+      (r: any) => r.reference === "WEIGH-1",
+    );
+    assert.deepEqual(
+      [
+        weightRow.bags,
+        weightRow.gross,
+        weightRow.bagLoss,
+        weightRow.net,
+        weightRow.credit,
+      ],
+      ["10", "900", "20", "752.4", "752.40"],
+    );
+    assert.equal(weightRow.discountRate, "5%");
+    const negativeWeight = await call("/api/stock", {
+      date: "2026-01-04",
+      itemId: item.data.row.id,
+      warehouse: "W1",
+      kind: "RECEIPT",
+      quantity: "1",
+      unitCost: "1",
+      counterpart: "200",
+      description: "وزن غير صحيح",
+      requestKey: "negative-gross-test",
+      weigh: { weight: "5", tare: "10", bags: "0" },
+    });
+    assert.equal(negativeWeight.status, 400);
     try {
       console.log("HTTP: starting browser");
       browser = await chromium.launch({
@@ -534,6 +609,11 @@ async function main() {
         viewport: { width: 1440, height: 1100 },
       });
       const page = await context.newPage();
+      page.setDefaultTimeout(15000);
+      page.setDefaultNavigationTimeout(20000);
+      const pageErrors: string[] = [];
+      page.on("pageerror", (error) => pageErrors.push(error.message));
+      page.on("dialog", (dialog) => void dialog.accept());
       const token = cookie.split("=")[1];
       await context.addCookies([
         {
@@ -581,6 +661,67 @@ async function main() {
         .selectOption("300");
       await page.getByLabel("مدين", { exact: true }).nth(0).fill("5");
       await page.getByLabel("دائن", { exact: true }).nth(1).fill("5");
+      // Incomplete line must stay in the form with an actionable error, never a full-page error.
+      await page.getByLabel("الحساب — بند 2", { exact: true }).selectOption("");
+      await page
+        .getByRole("button", { name: "حفظ مسودة", exact: true })
+        .click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "راجع السطور" })
+        .waitFor();
+      assert.ok(page.url().includes("journal-entries"));
+      assert.equal(
+        await page.getByLabel("البيان", { exact: true }).inputValue(),
+        "قيد من الواجهة",
+      );
+      await page.reload();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "استعدنا الإدخال" })
+        .waitFor();
+      assert.equal(
+        await page.getByLabel("البيان", { exact: true }).inputValue(),
+        "قيد من الواجهة",
+      );
+      assert.equal(
+        await page.getByLabel("مدين", { exact: true }).first().inputValue(),
+        "5",
+      );
+      await page
+        .getByLabel("الحساب — بند 2", { exact: true })
+        .selectOption("300");
+      await page.getByLabel("دائن", { exact: true }).nth(1).fill("4");
+      await page
+        .getByRole("button", { name: "حفظ مسودة", exact: true })
+        .click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "القيد غير متوازن" })
+        .waitFor();
+      await page.getByLabel("دائن", { exact: true }).nth(1).fill("5");
+      // An HTML proxy error also remains inline and preserves the values.
+      await page.route("**/api/journal", async (route) => {
+        if (route.request().method() === "POST")
+          await route.fulfill({
+            status: 500,
+            contentType: "text/html",
+            body: "<h1>Upstream unavailable</h1>",
+          });
+        else await route.continue();
+      });
+      await page
+        .getByRole("button", { name: "حفظ مسودة", exact: true })
+        .click();
+      await page
+        .getByRole("alert")
+        .filter({ hasText: "تعذر قراءة رد الخادم" })
+        .waitFor();
+      assert.equal(
+        await page.getByLabel("البيان", { exact: true }).inputValue(),
+        "قيد من الواجهة",
+      );
+      await page.unroute("**/api/journal");
       await page
         .getByRole("button", { name: "حفظ مسودة", exact: true })
         .click();
@@ -613,6 +754,11 @@ async function main() {
         );
         assert.equal(response?.status(), 200, route.page);
         await page.locator("main h1").first().waitFor();
+        assert.equal(
+          await page.locator(`[data-page-guide="${route.page}"]`).count(),
+          1,
+          route.page,
+        );
       }
       for (const prefix of ["ar", "en"]) {
         const response = await page.goto(
@@ -628,7 +774,150 @@ async function main() {
         path: "test-results/payroll-review.png",
         fullPage: true,
       });
+      await page.goto(base + "/ar/dashboard/accounting/journal-entries");
+      await page
+        .locator("summary")
+        .filter({ hasText: "المستندات والوزن" })
+        .click();
+      await page
+        .getByLabel("حساب القيمة من الوزن وخصومات الأجولة والفحص", {
+          exact: true,
+        })
+        .check();
+      for (const [label, value] of [
+        ["الوزن", "1000"],
+        ["الفارغ", "100"],
+        ["عدد الأجولة", "10"],
+        ["خصم الجوال بالكيلو", "2"],
+        ["نسبة الخصم (0–1)", "0.05"],
+        ["نسبة الفحص (0–1)", "0.1"],
+        ["السعر للطن", "1000"],
+      ])
+        await page.getByLabel(label, { exact: true }).fill(value);
+      await page
+        .getByRole("button", {
+          name: "احسب القائم والصافي والقيمة",
+          exact: true,
+        })
+        .click();
+      await page.getByLabel("القيمة", { exact: true }).waitFor();
+      assert.equal(
+        await page.getByLabel("القيمة", { exact: true }).inputValue(),
+        "752.4",
+      );
+      console.log("UI: checking employee editing and workbook reports");
+      // Employee columns are separate, and account configuration is selected by name.
+      await page.goto(base + "/ar/dashboard/hr/employees");
+      await page
+        .getByRole("cell", { name: "موظف الاختبار", exact: true })
+        .waitFor();
+      await page
+        .getByRole("columnheader", { name: "اجر اليوم", exact: true })
+        .waitFor();
+      await page
+        .getByRole("cell", { name: "216.666667", exact: true })
+        .waitFor();
+      await page
+        .getByRole("button", { name: "تعديل", exact: true })
+        .first()
+        .click();
+      await page.getByText("ربط الحسابات المحاسبية", { exact: true }).click();
+      assert.equal(
+        await page
+          .getByLabel("حساب سلف الموظفين", { exact: true })
+          .inputValue(),
+        "120",
+      );
+      await page.getByLabel("موبايل", { exact: true }).fill("01000000000");
+      await page.getByRole("button", { name: "حفظ", exact: true }).click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "تم حفظ السجل" })
+        .waitFor();
+      await page
+        .getByRole("cell", { name: "01000000000", exact: true })
+        .waitFor();
+      await page.screenshot({
+        path: "test-results/workbook-employees.png",
+        fullPage: true,
+      });
+      // Sheet inputs sit at their original coordinates, and save real backend values.
+      await page.goto(base + "/ar/dashboard/costs/manufacturing-costs");
+      await page.getByLabel("مركز التكلفة", { exact: true }).selectOption("C1");
+      const quantityInput = page
+        .getByRole("table")
+        .getByLabel("الكمية المنتجة (عدد الوحدات / العبوات التامة)", {
+          exact: true,
+        });
+      await quantityInput.fill("10");
+      await page
+        .getByLabel("هامش الربح المستهدف (نسبة مئوية)", { exact: true })
+        .fill("20");
+      await Promise.all([
+        page.waitForResponse(
+          (r) =>
+            r.url().includes("/api/costs/MANUFACTURING") &&
+            r.request().method() === "GET",
+        ),
+        page
+          .getByRole("button", {
+            name: "حفظ المدخلات وحساب التقرير",
+            exact: true,
+          })
+          .click(),
+      ]);
+      assert.equal(
+        (await call("/api/costs/MANUFACTURING?center=C1")).data.inputs.C33,
+        "10",
+      );
+      await page.goto(base + "/ar/dashboard/accounting/account-statement");
+      await page
+        .getByText("اختر الحساب بالاسم لعرض كشفه.", { exact: false })
+        .waitFor();
+      await page.getByLabel("الحساب", { exact: true }).selectOption("200");
+      await page
+        .getByLabel("الحساب التحليلي", { exact: true })
+        .selectOption("V1");
+      await page.locator("[data-statement-header]").waitFor();
+      await page
+        .getByRole("columnheader", { name: "القائم", exact: true })
+        .waitFor();
+      await page
+        .getByRole("cell", { name: "شراء اختباري", exact: true })
+        .waitFor();
+      await page.screenshot({
+        path: "test-results/workbook-account-statement.png",
+        fullPage: true,
+      });
       await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(base + "/ar/dashboard");
+      console.log("UI: checking mobile menu and stock entry");
+      for (const prefix of ["ar", "en"]) {
+        await page.goto(base + "/" + prefix + "/dashboard");
+        const menu = page.getByRole("button", {
+          name: "Open navigation drawer",
+          exact: true,
+        });
+        await menu.click();
+        await page.getByRole("dialog", { name: "Mobile Navigation" }).waitFor();
+        await page.keyboard.press("Escape");
+        await page
+          .getByRole("dialog", { name: "Mobile Navigation" })
+          .waitFor({ state: "hidden" });
+        assert.equal(
+          await menu.evaluate((el) => el === document.activeElement),
+          true,
+        );
+        await menu.click();
+        await page
+          .getByRole("dialog", { name: "Mobile Navigation" })
+          .getByRole("link")
+          .first()
+          .click();
+        await page
+          .getByRole("dialog", { name: "Mobile Navigation" })
+          .waitFor({ state: "hidden" });
+      }
       await page.goto(base + "/ar/dashboard");
       assert.equal(await page.locator("[data-workbook-cell]").count(), 43);
       assert.ok(
@@ -649,6 +938,77 @@ async function main() {
         path: "test-results/mobile-stock.png",
         fullPage: true,
       });
+      await page
+        .getByRole("button", { name: "Open navigation drawer", exact: true })
+        .click();
+      await page.getByRole("dialog", { name: "Mobile Navigation" }).waitFor();
+      await page.screenshot({
+        path: "test-results/workbook-mobile-menu.png",
+        fullPage: true,
+      });
+      await page
+        .getByRole("dialog", { name: "Mobile Navigation" })
+        .getByRole("link", { name: "اذن اضافة", exact: true })
+        .click();
+      await page
+        .locator("main")
+        .getByRole("heading", { name: "اذن اضافة", exact: true })
+        .waitFor();
+      await page
+        .getByLabel("الصنف", { exact: true })
+        .selectOption(item.data.row.id);
+      await page
+        .getByLabel("المخزن / الثلاجة", { exact: true })
+        .selectOption("W1");
+      await page
+        .getByLabel("البيان", { exact: true })
+        .fill("إذن وزن من الموبايل");
+      await page
+        .getByLabel("الحساب المقابل (مورد / تكلفة / رأس مال)", { exact: true })
+        .selectOption("200");
+      await page.getByLabel("تكلفة الوحدة للوارد", { exact: true }).fill("2");
+      await page.getByLabel("رقم السيارة", { exact: true }).fill("TEST-123");
+      await page
+        .getByLabel("إدخال الوزن والفارغ بدل الكمية (كجم)", { exact: true })
+        .check();
+      await page.getByLabel("الوزن", { exact: true }).fill("25");
+      await page.getByLabel("الفارغ", { exact: true }).fill("5");
+      await page.getByLabel("العدد", { exact: true }).fill("2");
+      await page
+        .getByRole("button", { name: "حفظ وترحيل", exact: true })
+        .click();
+      await page
+        .getByRole("status")
+        .filter({ hasText: "تم تسجيل حركة المخزون" })
+        .waitFor();
+      const savedStock = (await call("/api/stock")).data.rows.find(
+        (r: any) => r.metadata.logistics?.truck === "TEST-123",
+      );
+      assert.equal(savedStock.quantity, "20");
+      assert.equal(savedStock.metadata.stockWeigh.bags, "2");
+      const mobileWidth = await page.evaluate(() => ({
+        page: document.documentElement.scrollWidth,
+        viewport: window.innerWidth,
+      }));
+      assert.ok(
+        mobileWidth.page <= mobileWidth.viewport,
+        JSON.stringify(mobileWidth),
+      );
+      await page.evaluate(() => {
+        window.scrollTo(0, 0);
+        document
+          .querySelectorAll<HTMLElement>('[role="region"]')
+          .forEach((el) => (el.scrollLeft = 0));
+      });
+      await page.screenshot({
+        path: "test-results/workbook-mobile-entry.png",
+        fullPage: true,
+      });
+      assert.deepEqual(
+        pageErrors,
+        [],
+        "No client rendering exceptions during any workflow",
+      );
       console.log(
         "PASS: browser journal create/post, report rendering, all " +
           getAllRouteParams().length +

@@ -53,6 +53,7 @@ export async function authorize(
 }
 export function publicUser(user: {
   id: string;
+  companyId: number;
   email: string;
   name: string;
   role: string;
@@ -60,6 +61,7 @@ export function publicUser(user: {
 }) {
   return {
     id: user.id,
+    companyId: user.companyId,
     email: user.email,
     name: user.name,
     role: user.role,

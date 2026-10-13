@@ -2,52 +2,94 @@
 @tailwind components;
 @tailwind utilities;
 
-.workbook-home { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.workbook-button { display: flex; align-items: center; justify-content: center; min-height: 56px; padding: 12px 8px; background: #dceaf7; color: #102d44; border: 1px solid transparent; border-radius: 4px; text-align: center; font-size: 14px; font-weight: 700; line-height: 1.6; transition: background .15s, border-color .15s; }
-.workbook-button:hover { background: #c9def1; border-color: #83accf; }
-.workbook-button:focus-visible { outline: 3px solid #2b6da5; outline-offset: 3px; }
-@media (min-width: 640px) { .workbook-home { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-@media (min-width: 1280px) { .workbook-home { grid-template-columns: repeat(9, minmax(0, 1fr)); gap: 18px 16px; } .workbook-button { grid-column: var(--workbook-column); grid-row: var(--workbook-row); min-height: 54px; } }
+.workbook-home {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.workbook-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 56px;
+  padding: 12px 8px;
+  background: #dceaf7;
+  color: #102d44;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.6;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
+}
+.workbook-button:hover {
+  background: #c9def1;
+  border-color: #83accf;
+}
+.workbook-button:focus-visible {
+  outline: 3px solid #2b6da5;
+  outline-offset: 3px;
+}
+@media (min-width: 640px) {
+  .workbook-home {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1280px) {
+  .workbook-home {
+    grid-template-columns: repeat(9, minmax(0, 1fr));
+    gap: 18px 16px;
+  }
+  .workbook-button {
+    grid-column: var(--workbook-column);
+    grid-row: var(--workbook-row);
+    min-height: 54px;
+  }
+}
 
 :root {
-  --green-950: #040E0B;
-  --green-900: #071C18;
-  --green-800: #11302A;
-  --green-700: #1F4E42;
-  --green-600: #2A6858;
-  --green-500: #3D9483;
-  --green-100: #E6F0EC;
+  --green-950: #040e0b;
+  --green-900: #071c18;
+  --green-800: #11302a;
+  --green-700: #1f4e42;
+  --green-600: #2a6858;
+  --green-500: #3d9483;
+  --green-100: #e6f0ec;
 
-  --canvas: #F7F5F3;
-  --white:  #FFFFFF;
-  --border: #E4E0DC;
-  --border-light: #EFECE8;
+  --canvas: #f7f5f3;
+  --white: #ffffff;
+  --border: #e4e0dc;
+  --border-light: #efece8;
 
-  --accent-600: #208C78;
-  --accent-500: #28A78F;
-  --accent-400: #45BFAB;
+  --accent-600: #208c78;
+  --accent-500: #28a78f;
+  --accent-400: #45bfab;
 
-  --ink-900: #1C2321;
-  --ink-600: #6B7370;
-  --ink-canvas: #58605D;
-  --ink-400: #959D9A;
+  --ink-900: #1c2321;
+  --ink-600: #6b7370;
+  --ink-canvas: #58605d;
+  --ink-400: #959d9a;
 
-  --success: #4C7A5E;
-  --warning: #C98A3C;
-  --danger:  #B4514A;
-  --info:    #4A6FA5;
+  --success: #4c7a5e;
+  --warning: #c98a3c;
+  --danger: #b4514a;
+  --info: #4a6fa5;
 }
 
 body {
   background-color: var(--canvas);
   color: var(--ink-900);
-  font-family: var(--font-cairo), 'Cairo', system-ui, sans-serif;
+  font-family: var(--font-cairo), "Cairo", system-ui, sans-serif;
   font-size: 15px;
   line-height: 1.6;
 }
 
 /* Strict no letter spacing on Arabic */
-[dir="rtl"], [dir="rtl"] * {
+[dir="rtl"],
+[dir="rtl"] * {
   letter-spacing: 0 !important;
 }
 
@@ -58,7 +100,9 @@ body {
 
 /* Reduced motion instantaneous transitions */
 @media (prefers-reduced-motion: reduce) {
-  *, ::before, ::after {
+  *,
+  ::before,
+  ::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
@@ -69,16 +113,28 @@ body {
 /* Ledger dark ruled lines on green panels at 6% opacity in lighter green */
 .ledger-ruled-dark {
   background-color: var(--green-800);
-  background-image: 
+  background-image:
     linear-gradient(to bottom, transparent 31px, rgba(61, 148, 131, 0.06) 32px),
-    linear-gradient(to left, transparent 48px, rgba(40, 167, 143, 0.12) 49px, transparent 50px);
-  background-size: 100% 32px, 100% 100%;
+    linear-gradient(
+      to left,
+      transparent 48px,
+      rgba(40, 167, 143, 0.12) 49px,
+      transparent 50px
+    );
+  background-size:
+    100% 32px,
+    100% 100%;
 }
 
 [dir="ltr"] .ledger-ruled-dark {
-  background-image: 
+  background-image:
     linear-gradient(to bottom, transparent 31px, rgba(61, 148, 131, 0.06) 32px),
-    linear-gradient(to right, transparent 48px, rgba(40, 167, 143, 0.12) 49px, transparent 50px);
+    linear-gradient(
+      to right,
+      transparent 48px,
+      rgba(40, 167, 143, 0.12) 49px,
+      transparent 50px
+    );
 }
 
 /* Accounting Double Rule for grand totals */
@@ -98,20 +154,30 @@ body {
 }
 
 /* Focus Visible outline matching Part 2: 2px accent-500 with 2px offset */
-button:focus-visible, a:focus-visible, input:focus-visible {
+button:focus-visible,
+a:focus-visible,
+input:focus-visible {
   outline: 2px solid var(--accent-500);
   outline-offset: 2px;
 }
 
 /* Smooth infinite marquee animation */
 @keyframes marqueeSlow {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
 }
 
 @keyframes marqueeSlowRtl {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(50%); }
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(50%);
+  }
 }
 
 .animate-marquee-slow {
@@ -128,14 +194,71 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   animation-play-state: paused;
 }
 
-
 @media print {
-  header, aside, nav, button { display: none !important; }
-  body, main { background: white !important; margin: 0 !important; padding: 0 !important; }
-  .overflow-x-auto { overflow: visible !important; }
-  table { font-size: 9px !important; }
-  th, td { padding: 4px !important; white-space: normal !important; }
-  tr { break-inside: avoid; }
-  thead { display: table-header-group; }
-  @page { size: A4 landscape; margin: 12mm; }
+  header,
+  aside,
+  nav,
+  button {
+    display: none !important;
+  }
+  body,
+  main {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+  table {
+    font-size: 9px !important;
+  }
+  th,
+  td {
+    padding: 4px !important;
+    white-space: normal !important;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  @page {
+    size: A4 landscape;
+    margin: 12mm;
+  }
+}
+
+/* Workbook entry cells keep the page within the mobile viewport. */
+.entry-sheet th {
+  background: #ecfdf5;
+  color: #14532d;
+  padding: 0.65rem;
+  white-space: nowrap;
+  border: 1px solid #d1e5d8;
+}
+.entry-sheet td {
+  padding: 0.3rem;
+  border: 1px solid #d1e5d8;
+  vertical-align: top;
+}
+.entry-sheet input,
+.entry-sheet select {
+  border-radius: 0.25rem;
+  min-height: 42px;
+}
+.entry-sheet td:has(input[readonly]),
+.entry-sheet .computed {
+  background: #f1f5f3;
+}
+@media print {
+  .entry-sheet,
+  table {
+    font-size: 10px;
+  }
+  .entry-sheet th,
+  .entry-sheet td {
+    padding: 4px;
+  }
 }

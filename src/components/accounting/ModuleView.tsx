@@ -37,12 +37,15 @@ export function ModuleView({
       return <DocumentView />;
     case "journal":
       return (
-        <>
-          <JournalView title={title} kind={m.kind} />
-          {!m.kind && (
-            <SupportingTools tools={[["documents", "المستندات والوزن"]]} />
-          )}
-        </>
+        <JournalView
+          title={title}
+          kind={m.kind}
+          tools={
+            !m.kind ? (
+              <SupportingTools tools={[["documents", "المستندات والوزن"]]} />
+            ) : undefined
+          }
+        />
       );
     case "register":
       if (m.view === "account-lists") return <AccountListsView title={title} />;

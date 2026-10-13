@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import React, { useEffect } from 'react';
-import Link from 'next/link';
-import { Logo } from '@/components/brand/Logo';
-import { AlertOctagon, RotateCcw, Home } from 'lucide-react';
+import React, { useEffect } from "react";
+import Link from "next/link";
+import { Logo } from "@/components/brand/Logo";
+import { AlertOctagon, RotateCcw, Home } from "lucide-react";
 
 export default function ErrorPage({
   error,
@@ -13,13 +13,12 @@ export default function ErrorPage({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('Unhandled app error:', error);
+    console.error("Unhandled app error:", error);
   }, [error]);
 
   return (
     <main className="min-h-screen bg-canvas flex items-center justify-center p-4 text-ink-900 text-start">
       <div className="max-w-md w-full bg-white rounded-3xl p-8 sm:p-10 border border-border shadow-card text-center space-y-6">
-        
         <div className="flex justify-center">
           <Logo markSize={36} />
         </div>
@@ -30,13 +29,14 @@ export default function ErrorPage({
 
         <div className="space-y-2">
           <span className="text-xs font-bold text-danger uppercase tracking-wider font-mono">
-            500 — خطأ في الخادم
+            تعذر عرض الصفحة
           </span>
           <h1 className="font-kufi font-bold text-2xl text-ink-900">
             حدث خطأ غير متوقع
           </h1>
           <p className="text-xs text-ink-600 leading-relaxed font-light">
-            تعذر إكمال العملية في الوقت الحالي. تم تسجيل التنبيه للمراجعة التقنية ولم تتأثر أي قيود أو دفاتر محاسبية.
+            أعد المحاولة. إذا حدث الخطأ أثناء الحفظ، راجع السجلات قبل إعادة
+            الإرسال لتجنب تكرار العملية.
           </p>
         </div>
 
@@ -57,7 +57,6 @@ export default function ErrorPage({
             <span>الرئيسية</span>
           </Link>
         </div>
-
       </div>
     </main>
   );

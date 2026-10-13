@@ -1,4 +1,5 @@
 "use client";
+import { EntryRow } from "./EntrySheet";
 import React, { useState } from "react";
 import {
   api,
@@ -74,6 +75,16 @@ export function StockView({
     costCenter: "",
     costItem: "",
   });
+  const [logistics, setLogistics] = useState<Record<string, string>>({
+    shipment: "",
+    truck: "",
+    farm: "",
+    pivot: "",
+    color: "",
+    notes: "",
+  });
+  const [weighed, setWeighed] = useState(false),
+    [weights, setWeights] = useState({ weight: "0", tare: "0", bags: "0" });
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
@@ -83,13 +94,28 @@ export function StockView({
     e.preventDefault();
     setBusy(true);
     setError("");
-    const requestKey = key || crypto.randomUUID();
-    setKey(requestKey);
     try {
-      await api("/api/stock", { ...form, requestKey });
+      const requestKey = key || crypto.randomUUID();
+      setKey(requestKey);
+      await api("/api/stock", {
+        ...form,
+        quantity: weighed ? "1" : form.quantity,
+        logistics,
+        ...(weighed ? { weigh: weights } : {}),
+        requestKey,
+      });
       setKey("");
       setMessage("تم تسجيل حركة المخزون والمستند المرتبط إن وجد");
       setForm({ ...form, quantity: "", description: "", reference: "" });
+      setWeights({ weight: "0", tare: "0", bags: "0" });
+      setLogistics({
+        shipment: "",
+        truck: "",
+        farm: "",
+        pivot: "",
+        color: "",
+        notes: "",
+      });
       await stock.reload();
     } catch (e) {
       setError((e as Error).message);
@@ -104,7 +130,7 @@ export function StockView({
           onSubmit={save}
           className="rounded-xl border bg-white p-5 space-y-4"
         >
-          <div className="grid gap-4 md:grid-cols-3">
+          <EntryRow>
             <Field label="نوع الحركة">
               <select
                 className={inputClass}
@@ -166,12 +192,23 @@ export function StockView({
             ].map(([k, l, t]) => (
               <Field key={k} label={l}>
                 <input
-                  required={["date", "quantity", "description"].includes(k)}
+                  disabled={weighed && k === "quantity"}
+                  required={
+                    ["date", "quantity", "description"].includes(k) &&
+                    !(weighed && k === "quantity")
+                  }
                   className={inputClass}
                   type={t}
                   step="0.001"
                   min={t === "number" ? 0 : undefined}
-                  value={form[k]}
+                  value={
+                    weighed && k === "quantity"
+                      ? String(
+                          (Number(weights.weight) || 0) -
+                            (Number(weights.tare) || 0),
+                        )
+                      : form[k]
+                  }
                   onChange={(e) => set(k, e.target.value)}
                 />
               </Field>
@@ -216,7 +253,67 @@ export function StockView({
                 onChange={(e) => set("costItem", e.target.value)}
               />
             </Field>
-          </div>
+          </EntryRow>
+          <EntryRow label="تفاصيل إذن المخزن">
+            {[
+              ["shipment", "بوليصة الشحن"],
+              ["truck", "رقم السيارة"],
+              ["farm", "المزرعة"],
+              ["pivot", "البيفت"],
+              ["color", "اللون"],
+              ["notes", "ملاحظات"],
+            ].map(([k, label]) => (
+              <Field key={k} label={label}>
+                <input
+                  className={inputClass}
+                  value={logistics[k]}
+                  onChange={(e) =>
+                    setLogistics({ ...logistics, [k]: e.target.value })
+                  }
+                />
+              </Field>
+            ))}
+          </EntryRow>
+          <label className="flex gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={weighed}
+              onChange={(e) => setWeighed(e.target.checked)}
+            />
+            إدخال الوزن والفارغ بدل الكمية (كجم)
+          </label>
+          {weighed && (
+            <EntryRow label="وزن إذن المخزن">
+              {[
+                ["bags", "العدد"],
+                ["weight", "الوزن"],
+                ["tare", "الفارغ"],
+              ].map(([k, label]) => (
+                <Field key={k} label={label}>
+                  <input
+                    className={inputClass}
+                    required
+                    min="0"
+                    type="number"
+                    step="0.001"
+                    value={weights[k as keyof typeof weights]}
+                    onChange={(e) =>
+                      setWeights({ ...weights, [k]: e.target.value })
+                    }
+                  />
+                </Field>
+              ))}
+              <Field label="القائم">
+                <input
+                  className={inputClass}
+                  readOnly
+                  value={
+                    (Number(weights.weight) || 0) - (Number(weights.tare) || 0)
+                  }
+                />
+              </Field>
+            </EntryRow>
+          )}
           <p className="text-sm text-ink-600">
             تقييم المخزون بمتوسط الفترة. تكلفة الوارد تسجل بالمستند؛ تكلفة
             الصادر وقيمة الباقي تحددان عند إقفال المخزون. حركة الصرف وحدها لا
@@ -281,6 +378,30 @@ export function StockView({
           ...r,
           date: String(r.date).slice(0, 10),
           item: (r.item as RecordRow)?.name,
+          warehouse:
+            warehouses.data.rows.find((w) => w.code === r.warehouse)?.name ||
+            r.warehouse,
+          kind:
+            (
+              {
+                OPENING: "افتتاحي",
+                RECEIPT: "إضافة",
+                ISSUE: "صرف",
+                WASTE: "هالك",
+                RETURN_IN: "مردود وارد",
+                RETURN_OUT: "مردود صادر",
+                COUNT_GAIN: "زيادة جرد",
+                COUNT_LOSS: "عجز جرد",
+              } as Record<string, string>
+            )[String(r.kind)] || r.kind,
+          ...(((r.metadata as Record<string, unknown>)?.logistics as Record<
+            string,
+            string
+          >) || {}),
+          ...(((r.metadata as Record<string, unknown>)?.stockWeigh as Record<
+            string,
+            string
+          >) || {}),
         }))}
         columns={[
           ["date", "التاريخ"],
@@ -291,7 +412,16 @@ export function StockView({
           ["runningQuantity", "الرصيد التراكمي"],
           ["unitCost", "تكلفة الوحدة"],
           ["value", "القيمة"],
-          ["reference", "المرجع"],
+          ["reference", "رقم الإذن"],
+          ["shipment", "بوليصة الشحن"],
+          ["truck", "رقم السيارة"],
+          ["farm", "المزرعة"],
+          ["pivot", "البيفت"],
+          ["color", "اللون"],
+          ["bags", "العدد"],
+          ["weight", "الوزن"],
+          ["tare", "الفارغ"],
+          ["notes", "ملاحظات"],
         ].map(([key, label]) => ({ key, label }))}
       />
     </Workspace>

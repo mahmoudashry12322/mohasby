@@ -1,4 +1,5 @@
 "use client";
+import { useSearchParams } from "next/navigation";
 import React, { useState } from "react";
 import {
   DataTable,
@@ -51,10 +52,13 @@ export function ReportView({
   view?: string;
   costType?: string;
 }) {
+  const searchParams = useSearchParams();
   const [query, setQuery] = useState(""),
-    [account, setAccount] = useState(""),
-    [party, setParty] = useState(""),
+    [account, setAccount] = useState(searchParams.get("account") || ""),
+    [party, setParty] = useState(searchParams.get("party") || ""),
     [center, setCenter] = useState("");
+  const statement = view === "statement";
+  const ready = !statement || !!account;
   const p = new URLSearchParams(query);
   if (account) p.set("account", account);
   if (party) p.set("party", party);
@@ -64,7 +68,7 @@ export function ReportView({
   if (view === "purchases") p.set("documents", "PURCHASE,PURCHASE_RETURN");
   if (view === "cash") p.set("cashOnly", "true");
   const { data, error, loading } = useLoad<Report>(
-    `/api/reports/${report}?${p}`,
+    ready ? `/api/reports/${report}?${p}` : null,
     {},
   );
   const accounts = useLoad<{
@@ -85,6 +89,24 @@ export function ReportView({
   let rows = data.rows || [],
     columns = ledgerColumns;
   const metrics: [string, string][] = [];
+  if (statement)
+    columns = [
+      ["number", "رقم القيد"],
+      ["date", "التاريخ"],
+      ["reference", "رقم الاذن"],
+      ["document", "المستند"],
+      ["description", "البيان"],
+      ["bags", "العدد"],
+      ["gross", "القائم"],
+      ["bagLoss", "خـ : ك"],
+      ["discountRate", "نسبة %"],
+      ["inspectionRate", "فحص %"],
+      ["net", "الصافى"],
+      ["pricePerTonne", "السعر للطن"],
+      ["debit", "مدين"],
+      ["credit", "دائن"],
+      ["balance", "الرصيد"],
+    ];
   if (report === "trial-balance") columns = trialColumns;
   if (report === "ledger")
     metrics.push(
@@ -166,7 +188,9 @@ export function ReportView({
               value={account}
               onChange={(e) => setAccount(e.target.value)}
             >
-              <option value="">جميع الحسابات</option>
+              <option value="">
+                {statement ? "اختر اسم الحساب لعرض الكشف" : "جميع الحسابات"}
+              </option>
               {accounts.data.accounts
                 .filter((a) => !a.isGroup)
                 .map((a) => (
@@ -206,13 +230,69 @@ export function ReportView({
           </Field>
         </div>
       )}
-      {metrics.length > 0 && (
+      {statement && ready && (
+        <div
+          className="rounded-xl border border-green-200 bg-white p-5 space-y-3"
+          data-statement-header
+        >
+          <h2 className="font-bold text-xl">
+            كشف حساب —{" "}
+            {accounts.data.accounts.find((a) => a.code === account)?.name}
+          </h2>
+          <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
+            <p>كود الحساب: {account}</p>
+            <p>
+              الحساب التحليلي:{" "}
+              {[...parties.data.rows, ...employees.data.rows].find(
+                (a) => a.code === party,
+              )?.name || "الكل"}
+            </p>
+            <p>من تاريخ: {p.get("from") || "بداية السجلات"}</p>
+            <p>حتى تاريخ: {p.get("to") || "نهاية السجلات"}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 text-sm">
+            {[
+              [
+                "افتتاحى مدين",
+                String(data.openingBalance || "0.00").startsWith("-")
+                  ? "0.00"
+                  : String(data.openingBalance || "0.00"),
+              ],
+              [
+                "افتتاحى دائن",
+                String(data.openingBalance || "0.00").startsWith("-")
+                  ? String(data.openingBalance).slice(1)
+                  : "0.00",
+              ],
+              ["إجمالي مدين", String(data.debit ?? "0.00")],
+              ["إجمالي دائن", String(data.credit ?? "0.00")],
+              [
+                "الرصيد",
+                String(data.closingBalance || "0.00").replace(/^-/, ""),
+              ],
+              [
+                "حالة الرصيد",
+                Number(data.closingBalance || 0) > 0
+                  ? "مدين"
+                  : Number(data.closingBalance || 0) < 0
+                    ? "دائن"
+                    : "متوازن",
+              ],
+            ].map(([label, value]) => (
+              <p key={label} className="rounded bg-green-50 p-3">
+                {label}: <strong>{loading ? "…" : value}</strong>
+              </p>
+            ))}
+          </div>
+        </div>
+      )}
+      {ready && !statement && metrics.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3">
           {metrics.map(([key, label]) => (
             <div key={key} className="rounded-xl border bg-white p-4">
               <p className="text-sm text-ink-600">{label}</p>
               <p className="mt-2 text-xl font-bold tabular-nums">
-                {String(data[key] ?? "—")}
+                {loading ? "…" : String(data[key] ?? "—")}
               </p>
             </div>
           ))}
@@ -227,7 +307,11 @@ export function ReportView({
           ]}
         />
       )}{" "}
-      {loading ? (
+      {!ready ? (
+        <p className="rounded-xl border bg-white p-6">
+          اختر الحساب بالاسم لعرض كشفه. لا تحتاج إلى إدخال حركات هنا.
+        </p>
+      ) : loading ? (
         <p>جارٍ إعداد التقرير…</p>
       ) : (
         <DataTable

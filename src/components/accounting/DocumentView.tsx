@@ -1,4 +1,5 @@
 "use client";
+import { EntryRow } from "./EntrySheet";
 import React, { useState } from "react";
 import templates from "@/data/cost-templates.json";
 import {
@@ -68,14 +69,33 @@ export function DocumentView() {
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [message, setMessage] = useState("");
+  const [preview, setPreview] = useState<{
+    key: string;
+    values: Record<string, string>;
+  } | null>(null);
+  async function previewWeights() {
+    setError("");
+    setBusy(true);
+    try {
+      const result = await api("/api/calculations", {
+        type: "weigh",
+        ...weights,
+      });
+      setPreview({ key: JSON.stringify(weights), values: result.result });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   const set = (k: string, v: string) => setForm({ ...form, [k]: v });
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError("");
-    const requestKey = key || crypto.randomUUID();
-    setKey(requestKey);
     try {
+      const requestKey = key || crypto.randomUUID();
+      setKey(requestKey);
       await api("/api/documents", {
         ...form,
         quantity: form.quantity || "0",
@@ -85,6 +105,7 @@ export function DocumentView() {
       });
       await history.reload();
       setKey("");
+      setPreview(null);
       setMessage("تم ترحيل المستند والمخزون والقيد المحاسبي بنجاح");
       setForm({
         ...form,
@@ -122,7 +143,7 @@ export function DocumentView() {
         onSubmit={save}
         className="rounded-xl border bg-white p-5 space-y-5"
       >
-        <div className="grid gap-4 md:grid-cols-3">
+        <EntryRow>
           <Field label="نوع المستند">
             <select
               className={inputClass}
@@ -220,7 +241,7 @@ export function DocumentView() {
               />
             </Field>
           ))}
-        </div>
+        </EntryRow>
         <label className="flex gap-2">
           <input
             type="checkbox"
@@ -230,7 +251,7 @@ export function DocumentView() {
           حساب القيمة من الوزن وخصومات الأجولة والفحص
         </label>
         {weighed && (
-          <div className="grid gap-3 md:grid-cols-3">
+          <EntryRow>
             {[
               ["weight", "الوزن"],
               ["tare", "الفارغ"],
@@ -254,6 +275,40 @@ export function DocumentView() {
                 />
               </Field>
             ))}
+          </EntryRow>
+        )}
+        {weighed && (
+          <div className="space-y-3">
+            <button
+              type="button"
+              disabled={busy}
+              className="rounded-lg border border-green-700 px-4 py-2 text-sm text-green-900"
+              onClick={previewWeights}
+            >
+              احسب القائم والصافي والقيمة
+            </button>
+            {preview?.key === JSON.stringify(weights) && (
+              <EntryRow label="نتيجة الوزن قبل الترحيل">
+                {[
+                  ["gross", "القائم"],
+                  ["bagLoss", "خصم الأجولة"],
+                  ["netKg", "صافى ك"],
+                  ["discount", "الخصم"],
+                  ["afterDiscount", "صافى بعد الخصم"],
+                  ["inspection", "ك فحص"],
+                  ["net", "الصافى"],
+                  ["amount", "القيمة"],
+                ].map(([k, label]) => (
+                  <Field key={k} label={label}>
+                    <input
+                      readOnly
+                      className={inputClass}
+                      value={preview.values[k] || ""}
+                    />
+                  </Field>
+                ))}
+              </EntryRow>
+            )}
           </div>
         )}
         <p className="text-sm text-ink-600">
