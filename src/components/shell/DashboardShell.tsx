@@ -173,8 +173,21 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         />
 
-        {/* Page Content */}
-        <PageFrame width={isHome ? "full" : "default"}>{children}</PageFrame>
+        {/* Page Content: accounting, stock, and reports use full responsive width to fit sheets without scroll */}
+        <PageFrame
+          width={
+            isHome ||
+            activeGroupSlug === "accounting" ||
+            activeGroupSlug === "stock" ||
+            activeGroupSlug === "costs" ||
+            activeGroupSlug === "reports" ||
+            activeGroupSlug === "setup"
+              ? "full"
+              : "default"
+          }
+        >
+          {children}
+        </PageFrame>
       </div>
 
       {/* 5. In-App AI Assistant Guide Launcher */}

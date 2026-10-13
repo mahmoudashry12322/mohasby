@@ -6,18 +6,30 @@ import React from "react";
 export function EntrySheet({
   children,
   label,
+  compact = false,
+  fitScreen = true,
 }: {
   children: React.ReactNode;
   label: string;
+  compact?: boolean;
+  fitScreen?: boolean;
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs text-ink-600 print:hidden">
-        الخلايا البيضاء للإدخال، والمظللة نتائج محسوبة. Tab للتنقل، وEnter للسطر
-        التالي. على الموبايل اسحب الجدول أفقيًا.
+      <p className="text-xs text-ink-600 print:hidden flex flex-wrap items-center justify-between gap-2">
+        <span>
+          الخلايا البيضاء للإدخال، والمظللة نتائج محسوبة. Tab للتنقل، وEnter للسطر التالي.
+        </span>
+        {fitScreen && (
+          <span className="text-[11px] text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200/60 font-medium">
+            ✓ وضع ملاءمة الشاشة نشط (بدون تمرير)
+          </span>
+        )}
       </p>
       <div
-        className="max-w-full overflow-x-auto rounded-lg border border-green-200 focus-within:border-green-700"
+        className={`max-w-full rounded-lg border border-green-200 focus-within:border-green-700 ${
+          fitScreen ? "overflow-x-auto lg:overflow-x-visible" : "overflow-x-auto"
+        }`}
         tabIndex={0}
         role="region"
         aria-label={label}
@@ -44,7 +56,9 @@ export function EntrySheet({
         }}
       >
         <table
-          className="entry-sheet w-full border-collapse text-right text-sm"
+          className={`entry-sheet w-full border-collapse text-right text-sm ${
+            compact || fitScreen ? "compact-sheet" : ""
+          }`}
           aria-label={label}
         >
           {children}

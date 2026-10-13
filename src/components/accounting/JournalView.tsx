@@ -93,7 +93,9 @@ export function JournalView({
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
-    [dimensions, setDimensions] = useState(false);
+    [dimensions, setDimensions] = useState(false),
+    [advancedDimensions, setAdvancedDimensions] = useState(false),
+    [fitScreen, setFitScreen] = useState(true);
   const validation = journalIssues(lines);
   const [attempted, setAttempted] = useState(false);
   const draft = useJournalDraft(
@@ -230,12 +232,12 @@ export function JournalView({
           </p>
         )}
         <fieldset disabled={busy || !draft.ready} className="min-w-0 space-y-4">
-          <div className="grid gap-4 md:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
             <Field label="التاريخ">
               <input
                 required
                 type="date"
-                className={inputClass}
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
               />
@@ -243,35 +245,73 @@ export function JournalView({
             <Field label="البيان">
               <input
                 required
-                className={inputClass}
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
               />
             </Field>
             <Field label="نوع المستند">
               <input
-                className={inputClass}
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
                 value={document}
                 onChange={(e) => setDocument(e.target.value)}
               />
             </Field>
             <Field label="رقم الإذن / المرجع">
               <input
-                className={inputClass}
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
                 value={reference}
                 onChange={(e) => setReference(e.target.value)}
               />
             </Field>
           </div>
-          <label className="flex gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={dimensions}
-              onChange={(e) => setDimensions(e.target.checked)}
-            />
-            إظهار الحساب التحليلي ومراكز التكلفة والموسم والتدفقات
-          </label>
+          {/* Smart Dimensions & Fit Screen Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-green-50/70 border border-green-200/70 text-xs">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="font-bold text-green-900">أبعاد القيد:</span>
+              <label className="flex items-center gap-1.5 cursor-pointer text-ink-800 hover:text-green-900 font-semibold select-none">
+                <input
+                  type="checkbox"
+                  checked={dimensions}
+                  onChange={(e) => setDimensions(e.target.checked)}
+                  className="rounded text-green-700 focus:ring-green-600 w-4 h-4 cursor-pointer"
+                />
+                الحساب التحليلي ومراكز التكلفة
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer text-ink-800 hover:text-green-900 font-medium select-none">
+                <input
+                  type="checkbox"
+                  checked={advancedDimensions}
+                  onChange={(e) => setAdvancedDimensions(e.target.checked)}
+                  className="rounded text-green-700 focus:ring-green-600 w-4 h-4 cursor-pointer"
+                />
+                تفاصيل التكاليف والزراعة (الموسم، المزرعة، البيفت، التدفقات)
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFitScreen(!fitScreen)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-sm ${
+                  fitScreen
+                    ? "bg-green-700 text-white border-green-800 ring-2 ring-green-600/30"
+                    : "bg-white text-ink-700 border-border hover:bg-neutral-50"
+                }`}
+                title={
+                  fitScreen
+                    ? "الجدول مضبوط لملء عرض الشاشة بدون شريط تمرير أفقي"
+                    : "التبديل إلى وضع العرض الممتد مع شريط تمرير أفقي"
+                }
+              >
+                <span>{fitScreen ? "⛶ ملاءمة عرض الشاشة (بدون تمرير)" : "↔ عرض ممتد (شريط تمرير)"}</span>
+              </button>
+            </div>
+          </div>
+
           <EntrySheet
+            fitScreen={fitScreen}
+            compact={fitScreen}
             label={
               kind === "OPENING"
                 ? "جدول الأرصدة الافتتاحية"
@@ -279,38 +319,42 @@ export function JournalView({
             }
           >
             <thead>
-              <tr>
-                <th scope="col">م</th>
-                <th scope="col">رقم الحساب / اسم الحساب</th>
+              <tr className={fitScreen ? "text-xs" : ""}>
+                <th scope="col" className={fitScreen ? "w-7 px-1 text-center font-bold" : ""}>م</th>
+                <th scope="col" className={fitScreen ? "min-w-[120px] font-bold" : ""}>رقم الحساب / اسم الحساب</th>
                 {dimensions && (
                   <>
-                    <th scope="col">الحساب التحليلي</th>
-                    <th scope="col">مركز التكلفة</th>
+                    <th scope="col" className={fitScreen ? "min-w-[90px] font-bold" : ""}>الحساب التحليلي</th>
+                    <th scope="col" className={fitScreen ? "min-w-[85px] font-bold" : ""}>مركز التكلفة</th>
+                  </>
+                )}
+                {advancedDimensions && (
+                  <>
                     {[
-                      ["costType", "توجيه التكاليف"],
-                      ["costItem", "بند التكلفة"],
-                      ["season", "الموسم"],
-                      ["farm", "المزرعة"],
-                      ["pivot", "البيفت"],
-                    ].map(([key, label]) => (
-                      <th key={key} scope="col">
+                      ["costType", "توجيه التكاليف", "min-w-[68px]"],
+                      ["costItem", "بند التكلفة", "min-w-[68px]"],
+                      ["season", "الموسم", "min-w-[58px]"],
+                      ["farm", "المزرعة", "min-w-[58px]"],
+                      ["pivot", "البيفت", "min-w-[50px]"],
+                    ].map(([key, label, w]) => (
+                      <th key={key} scope="col" className={fitScreen ? `${w} font-bold` : ""}>
                         {label}
                       </th>
                     ))}
-                    <th scope="col">التدفق النقدي</th>
+                    <th scope="col" className={fitScreen ? "min-w-[68px] font-bold" : ""}>التدفق النقدي</th>
                   </>
                 )}
-                <th scope="col">البيان / ملاحظات</th>
-                <th scope="col">مدين</th>
-                <th scope="col">دائن</th>
-                <th scope="col">إجراء</th>
+                <th scope="col" className={fitScreen ? "min-w-[85px] font-bold" : ""}>البيان / ملاحظات</th>
+                <th scope="col" className={fitScreen ? "min-w-[62px] text-center font-bold" : ""}>مدين</th>
+                <th scope="col" className={fitScreen ? "min-w-[62px] text-center font-bold" : ""}>دائن</th>
+                <th scope="col" className={fitScreen ? "w-7 px-0.5 text-center font-bold" : ""}>إجراء</th>
               </tr>
             </thead>
             <tbody>
               {lines.map((l, i) => (
                 <tr key={i}>
-                  <td className="computed">{i + 1}</td>
-                  <td className="min-w-64">
+                  <td className="computed text-center align-middle font-mono font-medium text-xs">{i + 1}</td>
+                  <td className={fitScreen ? "min-w-[120px]" : "min-w-64"}>
                     <select
                       aria-label={`الحساب — بند ${i + 1}`}
                       aria-invalid={attempted && !!validation.issues[i]}
@@ -320,7 +364,11 @@ export function JournalView({
                           : undefined
                       }
                       required
-                      className={inputClass}
+                      className={
+                        fitScreen
+                          ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                          : inputClass
+                      }
                       value={l.accountCode}
                       onChange={(e) => change(i, "accountCode", e.target.value)}
                     >
@@ -336,7 +384,7 @@ export function JournalView({
                     {attempted && validation.issues[i] && (
                       <p
                         id={`line-error-${i}`}
-                        className="mt-1 text-xs text-red-700"
+                        className="mt-0.5 text-[10px] text-red-700 font-semibold"
                       >
                         سطر {i + 1}: {validation.issues[i]}
                       </p>
@@ -344,10 +392,14 @@ export function JournalView({
                   </td>
                   {dimensions && (
                     <>
-                      <td className="min-w-48">
+                      <td className={fitScreen ? "min-w-[90px]" : "min-w-48"}>
                         <select
                           aria-label={`الحساب التحليلي — بند ${i + 1}`}
-                          className={inputClass}
+                          className={
+                            fitScreen
+                              ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                              : inputClass
+                          }
                           value={l.party}
                           onChange={(e) => change(i, "party", e.target.value)}
                         >
@@ -361,10 +413,14 @@ export function JournalView({
                           )}
                         </select>
                       </td>
-                      <td className="min-w-48">
+                      <td className={fitScreen ? "min-w-[85px]" : "min-w-48"}>
                         <select
                           aria-label={`مركز التكلفة — بند ${i + 1}`}
-                          className={inputClass}
+                          className={
+                            fitScreen
+                              ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                              : inputClass
+                          }
                           value={l.costCenter}
                           onChange={(e) =>
                             change(i, "costCenter", e.target.value)
@@ -378,14 +434,18 @@ export function JournalView({
                           ))}
                         </select>
                       </td>
+                    </>
+                  )}
+                  {advancedDimensions && (
+                    <>
                       {[
-                        ["costType", "توجيه التكاليف"],
-                        ["costItem", "بند التكلفة"],
-                        ["season", "الموسم"],
-                        ["farm", "المزرعة"],
-                        ["pivot", "البيفت"],
-                      ].map(([key, label]) => (
-                        <td className="min-w-40" key={key}>
+                        ["costType", "توجيه التكاليف", "min-w-[68px]"],
+                        ["costItem", "بند التكلفة", "min-w-[68px]"],
+                        ["season", "الموسم", "min-w-[58px]"],
+                        ["farm", "المزرعة", "min-w-[58px]"],
+                        ["pivot", "البيفت", "min-w-[50px]"],
+                      ].map(([key, label, w]) => (
+                        <td className={fitScreen ? w : "min-w-40"} key={key}>
                           <input
                             aria-label={`${label} — بند ${i + 1}`}
                             list={
@@ -393,7 +453,11 @@ export function JournalView({
                                 ? "cost-item-labels"
                                 : undefined
                             }
-                            className={inputClass}
+                            className={
+                              fitScreen
+                                ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                                : inputClass
+                            }
                             value={l[key as keyof Line]}
                             onChange={(e) =>
                               change(i, key as keyof Line, e.target.value)
@@ -401,10 +465,14 @@ export function JournalView({
                           />
                         </td>
                       ))}
-                      <td className="min-w-40">
+                      <td className={fitScreen ? "min-w-[68px]" : "min-w-40"}>
                         <select
                           aria-label={`تصنيف التدفق النقدي — بند ${i + 1}`}
-                          className={inputClass}
+                          className={
+                            fitScreen
+                              ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                              : inputClass
+                          }
                           value={l.cashFlow}
                           onChange={(e) =>
                             change(i, "cashFlow", e.target.value)
@@ -418,56 +486,80 @@ export function JournalView({
                       </td>
                     </>
                   )}
-                  <td className="min-w-52">
+                  <td className={fitScreen ? "min-w-[85px]" : "min-w-52"}>
                     <input
                       aria-label={`بيان البند ${i + 1}`}
-                      className={inputClass}
+                      className={
+                        fitScreen
+                          ? "w-full rounded border border-border bg-white px-1.5 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                          : inputClass
+                      }
                       value={l.description}
                       onChange={(e) => change(i, "description", e.target.value)}
                     />
                   </td>
                   {(["debit", "credit"] as const).map((key) => (
-                    <td className="min-w-36" key={key}>
+                    <td className={fitScreen ? "min-w-[62px]" : "min-w-36"} key={key}>
                       <input
                         aria-label={key === "debit" ? "مدين" : "دائن"}
                         type="number"
                         inputMode="decimal"
                         min="0"
                         step="0.01"
-                        className={inputClass}
+                        className={
+                          fitScreen
+                            ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8 text-center font-mono"
+                            : inputClass
+                        }
                         value={l[key]}
                         onChange={(e) => change(i, key, e.target.value)}
                       />
                     </td>
                   ))}
-                  <td>
+                  <td className={fitScreen ? "w-8 text-center align-middle" : ""}>
                     <button
                       type="button"
                       disabled={lines.length <= 2}
-                      className="whitespace-nowrap p-2 text-red-700 disabled:opacity-30"
+                      className={
+                        fitScreen
+                          ? "inline-flex items-center justify-center w-7 h-7 rounded text-red-600 hover:bg-red-50 hover:text-red-800 disabled:opacity-20 font-bold text-sm transition-colors"
+                          : "whitespace-nowrap p-2 text-red-700 disabled:opacity-30"
+                      }
+                      title={`حذف البند ${i + 1}`}
+                      aria-label={`حذف البند ${i + 1}`}
                       onClick={() => setLines(lines.filter((_, j) => i !== j))}
                     >
-                      حذف البند
+                      {fitScreen ? "✕" : "حذف البند"}
                     </button>
                   </td>
                 </tr>
               ))}
             </tbody>
           </EntrySheet>
-          <div className="flex flex-wrap justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/60">
             <button
               type="button"
-              className="rounded-lg border p-2"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border bg-white text-xs font-semibold text-ink-800 hover:bg-neutral-50 shadow-sm transition-all"
               disabled={lines.length >= 500}
               onClick={() => setLines([...lines, emptyLine()])}
             >
               + إضافة بند
             </button>
-            <div className="tabular-nums text-sm">
+            <div
+              className={`tabular-nums text-xs px-3 py-1.5 rounded-lg font-mono font-semibold border ${
+                Math.abs(difference) < 0.001
+                  ? "bg-green-50 text-green-800 border-green-200"
+                  : "bg-amber-50 text-amber-900 border-amber-200"
+              }`}
+            >
               مدين: {debit.toFixed(2)} — دائن: {credit.toFixed(2)} — الفرق:{" "}
               {difference.toFixed(2)}
             </div>
-            <button disabled={busy || !draft.ready} className={buttonClass}>
+            <button
+              type="submit"
+              disabled={busy || !draft.ready}
+              className={`${buttonClass} px-4 py-1.5 text-xs font-semibold shadow-sm`}
+            >
               {busy ? "جارٍ الحفظ…" : "حفظ مسودة"}
             </button>
           </div>
