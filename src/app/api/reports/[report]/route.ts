@@ -22,12 +22,30 @@ export async function GET(
     const p = new URL(request.url).searchParams,
       { from, to } = reportFilter(p);
     return await locked(user.companyId, async (tx) => {
+      const companyName =
+        user.company?.name ||
+        (
+          await tx.company.findUnique({
+            where: { id: user.companyId },
+            select: { name: true },
+          })
+        )?.name ||
+        "";
+      const meta = {
+        companyName,
+        fromDate: p.get("from") || "",
+        toDate: p.get("to") || "",
+      };
+
       switch (resolved.report) {
         case "trial-balance": {
           if (!can(user, "reports.trial_balance")) {
             throw new HttpError(403, "ليس لديك صلاحية لعرض ميزان المراجعة");
           }
-          return ok({ rows: await trialBalance(user.companyId, from, to, tx) });
+          return ok({
+            rows: await trialBalance(user.companyId, from, to, tx),
+            ...meta,
+          });
         }
         case "financial": {
           const hasBalanceSheet = can(user, "reports.balance_sheet");
@@ -47,7 +65,7 @@ export async function GET(
 
           // If user has balance sheet permission (or is admin), return full statements
           if (hasBalanceSheet) {
-            return ok(statements);
+            return ok({ ...statements, ...meta });
           }
 
           // If user only has income statement permission, strip balance sheet & equity totals
@@ -57,6 +75,7 @@ export async function GET(
               incomeSummary: statements.incomeSummary,
               profit: statements.profit,
               rows: statements.incomeRows,
+              ...meta,
             });
           }
 
@@ -66,8 +85,10 @@ export async function GET(
               equityRows: statements.equityRows,
               equity: statements.equity,
               unclosedProfit: statements.unclosedProfit,
+              totalEquity: statements.totalEquity,
               profit: statements.profit,
               rows: statements.equityRows,
+              ...meta,
             });
           }
 
@@ -79,7 +100,9 @@ export async function GET(
             equityRows: statements.equityRows,
             equity: statements.equity,
             unclosedProfit: statements.unclosedProfit,
+            totalEquity: statements.totalEquity,
             rows: [...statements.incomeRows, ...statements.equityRows],
+            ...meta,
           });
         }
         case "cash-flow":
@@ -88,15 +111,24 @@ export async function GET(
             throw new HttpError(403, "ليس لديك صلاحية لعرض قائمة التدفقات النقدية");
           }
           if (resolved.report === "cash-flow") {
-            return ok(await cashFlow(user.companyId, from, to, tx));
+            return ok({
+              ...(await cashFlow(user.companyId, from, to, tx)),
+              ...meta,
+            });
           }
-          return ok(await indirectCashFlow(user.companyId, from, to, tx));
+          return ok({
+            ...(await indirectCashFlow(user.companyId, from, to, tx)),
+            ...meta,
+          });
         }
         case "parties": {
           if (!can(user, "reports.outstanding_balances")) {
             throw new HttpError(403, "ليس لديك صلاحية لعرض تقرير أرصدة الأطراف");
           }
-          return ok(await partyBalances(user.companyId, from, to, tx));
+          return ok({
+            ...(await partyBalances(user.companyId, from, to, tx)),
+            ...meta,
+          });
         }
         case "ledger": {
           const allowedLedgerPermissions = [
@@ -115,7 +147,10 @@ export async function GET(
           if (!hasLedgerPerm) {
             throw new HttpError(403, "ليس لديك صلاحية لعرض تقارير الأستاذ");
           }
-          return ok(await ledgerReport(user.companyId, p, tx));
+          return ok({
+            ...(await ledgerReport(user.companyId, p, tx)),
+            ...meta,
+          });
         }
         default:
           throw new HttpError(404, "التقرير غير موجود");

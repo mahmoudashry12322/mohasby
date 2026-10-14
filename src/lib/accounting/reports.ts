@@ -305,6 +305,8 @@ export async function financialStatements(
     decreases: Prisma.Decimal.max(profit.neg(), 0).toFixed(2),
     closing: allProfit.toFixed(2),
   });
+  const totalEquity = equity.add(allProfit);
+  const totalLiabilitiesAndEquity = liabilities.add(totalEquity);
   return {
     rows: trial,
     incomeRows,
@@ -315,7 +317,9 @@ export async function financialStatements(
     liabilities: liabilities.toFixed(2),
     equity: equity.toFixed(2),
     unclosedProfit: allProfit.toFixed(2),
-    difference: assets.sub(liabilities).sub(equity).sub(allProfit).toFixed(2),
+    totalEquity: totalEquity.toFixed(2),
+    totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2),
+    difference: assets.sub(totalLiabilitiesAndEquity).toFixed(2),
     pendingInventoryAdjustment: stockValue.sub(stockBook).toFixed(2),
   };
 }

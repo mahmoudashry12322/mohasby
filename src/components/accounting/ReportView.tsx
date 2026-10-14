@@ -1,11 +1,14 @@
 "use client";
 import { useSearchParams } from "next/navigation";
+import { useLocale } from "next-intl";
 import React, { useState } from "react";
 import {
   DataTable,
   DateFilters,
   Field,
   inputClass,
+  ReportMetadata,
+  SummaryItem,
   useLoad,
   Workspace,
 } from "./Workspace";
@@ -52,10 +55,12 @@ export function ReportView({
   view?: string;
   costType?: string;
 }) {
+  const locale = useLocale();
+  const isAr = locale !== "en";
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState(""),
-    [account, setAccount] = useState(searchParams.get("account") || ""),
-    [party, setParty] = useState(searchParams.get("party") || ""),
+  const [query, setQuery] = useState(searchParams?.toString() || ""),
+    [account, setAccount] = useState(searchParams?.get("account") || ""),
+    [party, setParty] = useState(searchParams?.get("party") || ""),
     [center, setCenter] = useState("");
   const statement = view === "statement";
   const ready = !statement || !!account;
@@ -117,55 +122,69 @@ export function ReportView({
     );
   if (report === "financial") {
     columns = [
-      ["code", "الكود"],
-      ["name", "الحساب"],
-      ["accountClass", "التصنيف"],
-      ["periodBalance", "حركة الفترة (مدين − دائن)"],
-      ["balance", "الرصيد (مدين − دائن)"],
+      ["code", isAr ? "الكود" : "Code"],
+      ["name", isAr ? "الحساب" : "Account"],
+      ["accountClass", isAr ? "التصنيف" : "Classification"],
+      [
+        "periodBalance",
+        isAr ? "حركة الفترة (مدين − دائن)" : "Period Movement (Debit - Credit)",
+      ],
+      ["balance", isAr ? "الرصيد (مدين − دائن)" : "Balance (Debit - Credit)"],
     ];
     if (view === "income") {
       rows = data.incomeRows || [];
       metrics.push(
-        ["profit", "صافي الربح من القيود المرحلة"],
-        ["pendingInventoryAdjustment", "تسوية مخزون لم ترحل بعد"],
+        [
+          "profit",
+          isAr
+            ? "صافي الربح من القيود المرحلة"
+            : "Net Profit from Posted Entries",
+        ],
+        [
+          "pendingInventoryAdjustment",
+          isAr ? "تسوية مخزون لم ترحل بعد" : "Pending Inventory Adjustment",
+        ],
       );
     } else if (view === "equity") {
       rows = (data.equityRows || []) as Record<string, unknown>[];
       columns = [
-        ["name", "البند"],
-        ["opening", "رصيد أول الفترة"],
-        ["increases", "إضافات / أرباح"],
-        ["decreases", "تخفيضات / مسحوبات"],
-        ["closing", "رصيد آخر الفترة"],
+        ["name", isAr ? "البند" : "Item"],
+        ["opening", isAr ? "رصيد أول الفترة" : "Beginning Balance"],
+        ["increases", isAr ? "إضافات / أرباح" : "Increases / Profit"],
+        ["decreases", isAr ? "تخفيضات / مسحوبات" : "Decreases / Drawings"],
+        ["closing", isAr ? "رصيد آخر الفترة" : "Ending Balance"],
       ];
       metrics.push(
-        ["equity", "حقوق الملكية المسجلة"],
-        ["unclosedProfit", "أرباح غير مقفلة"],
+        ["equity", isAr ? "حقوق الملكية المسجلة" : "Recorded Equity"],
+        ["unclosedProfit", isAr ? "أرباح غير مقفلة" : "Unclosed Profit"],
       );
     } else {
       rows = rows.filter((r) => r.statementType !== "قائمة الدخل");
       metrics.push(
-        ["assets", "الأصول"],
-        ["liabilities", "الالتزامات"],
-        ["equity", "حقوق الملكية"],
-        ["unclosedProfit", "أرباح غير مقفلة"],
-        ["difference", "فرق الميزانية"],
+        ["assets", isAr ? "الأصول" : "Assets"],
+        ["liabilities", isAr ? "الالتزامات" : "Liabilities"],
+        ["equity", isAr ? "حقوق الملكية" : "Equity"],
+        ["unclosedProfit", isAr ? "أرباح غير مقفلة" : "Unclosed Profit"],
+        ["difference", isAr ? "فرق الميزانية" : "Balance Difference"],
       );
     }
   }
   if (report.startsWith("cash-flow")) {
     columns = [
-      ["category", "النشاط"],
-      ["amount", "صافي التدفق"],
+      ["category", isAr ? "النشاط" : "Activity"],
+      ["amount", isAr ? "صافي التدفق" : "Net Flow"],
     ];
     metrics.push(
-      ["opening", "رصيد أول الفترة"],
-      ["net", "صافي التدفق"],
-      ["closing", "رصيد آخر الفترة"],
-      ["unclassified", "بنود تحتاج تصنيف"],
+      ["opening", isAr ? "رصيد أول الفترة" : "Opening Balance"],
+      ["net", isAr ? "صافي التدفق" : "Net Flow"],
+      ["closing", isAr ? "رصيد آخر الفترة" : "Closing Balance"],
+      ["unclassified", isAr ? "بنود تحتاج تصنيف" : "Unclassified Items"],
     );
     if (report === "cash-flow-indirect")
-      metrics.push(["difference", "فرق المطابقة مع حركة النقدية"]);
+      metrics.push([
+        "difference",
+        isAr ? "فرق المطابقة مع حركة النقدية" : "Reconciliation Difference",
+      ]);
   }
   if (report === "parties")
     columns = [
@@ -177,6 +196,101 @@ export function ReportView({
       ["credit", "دائن الفترة"],
       ["balance", "الرصيد"],
     ];
+  const isBalanceSheet = report === "financial" && !view;
+
+  const fromDate = p.get("from") || (data.fromDate as string) || "";
+  const toDate = p.get("to") || (data.toDate as string) || "";
+
+  let periodText = "";
+  if (fromDate && toDate) {
+    periodText = isAr
+      ? `من ${fromDate} إلى ${toDate}`
+      : `From ${fromDate} to ${toDate}`;
+  } else if (toDate) {
+    periodText = isAr ? `حتى ${toDate}` : `As of ${toDate}`;
+  } else if (fromDate) {
+    periodText = isAr ? `من ${fromDate}` : `From ${fromDate}`;
+  } else {
+    periodText = isAr ? "جميع الفترات حتى تاريخه" : "All periods to date";
+  }
+
+  const companyName = String(data.companyName || "");
+
+  const reportMetadata: ReportMetadata = {
+    companyName,
+    reportTitle: title,
+    period: periodText,
+    fromDate,
+    toDate,
+  };
+
+  const assetsVal = String(data.assets ?? "0.00");
+  const liabilitiesVal = String(data.liabilities ?? "0.00");
+  const equityVal = String(data.equity ?? "0.00");
+  const unclosedProfitVal = String(data.unclosedProfit ?? "0.00");
+  const totalEquityVal =
+    data.totalEquity !== undefined
+      ? String(data.totalEquity)
+      : (Number(equityVal) + Number(unclosedProfitVal)).toFixed(2);
+  const totalLiabilitiesAndEquityVal =
+    data.totalLiabilitiesAndEquity !== undefined
+      ? String(data.totalLiabilitiesAndEquity)
+      : (Number(liabilitiesVal) + Number(totalEquityVal)).toFixed(2);
+  const diffVal = String(data.difference ?? "0.00");
+
+  const balanceSheetSummary: SummaryItem[] = isBalanceSheet
+    ? [
+        {
+          label: isAr ? "إجمالي الأصول" : "Total Assets",
+          value: assetsVal,
+        },
+        {
+          label: isAr ? "إجمالي الالتزامات" : "Total Liabilities",
+          value: liabilitiesVal,
+        },
+        {
+          label: isAr
+            ? "حقوق الملكية المسجلة قبل إضافة الربح أو الخسارة غير المقفلة"
+            : "Recorded Equity Before Unclosed Profit/Loss",
+          value: equityVal,
+        },
+        {
+          label: isAr
+            ? "الربح أو الخسارة غير المقفلة"
+            : "Unclosed Profit or Loss",
+          value: unclosedProfitVal,
+        },
+        {
+          label: isAr
+            ? "إجمالي حقوق الملكية شاملاً الربح أو الخسارة غير المقفلة"
+            : "Total Equity Including Unclosed Profit/Loss",
+          value: totalEquityVal,
+        },
+        {
+          label: isAr
+            ? "إجمالي الالتزامات وحقوق الملكية"
+            : "Total Liabilities and Equity",
+          value: totalLiabilitiesAndEquityVal,
+        },
+        {
+          label: isAr ? "فرق الاتزان" : "Balance Difference",
+          value: diffVal,
+        },
+      ]
+    : [];
+
+  const summaryFooter = isBalanceSheet ? (
+    <div className="mt-4 pt-3 border-t border-green-100 text-xs text-ink-700 text-center font-medium bg-green-50/70 py-2.5 px-3 rounded-lg print:border-gray-300 print:bg-gray-100">
+      {isAr
+        ? `معادلة اتزان المركز المالي: إجمالي الأصول (${assetsVal}) = إجمالي الالتزامات (${liabilitiesVal}) + إجمالي حقوق الملكية شاملاً الأرباح (${totalEquityVal}) | فرق الاتزان: ${diffVal}`
+        : `Balance Sheet Equilibrium: Total Assets (${assetsVal}) = Total Liabilities (${liabilitiesVal}) + Total Equity (${totalEquityVal}) | Balance Difference: ${diffVal}`}
+    </div>
+  ) : undefined;
+
+  const reportFilename = isBalanceSheet
+    ? `${isAr ? "قائمة-المركز-المالي" : "balance-sheet"}${toDate ? `-${toDate}` : ""}.csv`
+    : undefined;
+
   return (
     <Workspace title={title} error={error}>
       <DateFilters onChange={setQuery} />
@@ -302,21 +416,34 @@ export function ReportView({
         <DataTable
           rows={data.incomeSummary as Record<string, unknown>[]}
           columns={[
-            { key: "label", label: "البند" },
-            { key: "value", label: "القيمة" },
+            { key: "label", label: isAr ? "البند" : "Item" },
+            { key: "value", label: isAr ? "القيمة" : "Amount" },
           ]}
+          metadata={reportMetadata}
+          filename={`${isAr ? "قائمة-الدخل" : "income-statement"}${toDate ? `-${toDate}` : ""}.csv`}
         />
       )}{" "}
       {!ready ? (
         <p className="rounded-xl border bg-white p-6">
-          اختر الحساب بالاسم لعرض كشفه. لا تحتاج إلى إدخال حركات هنا.
+          {isAr
+            ? "اختر الحساب بالاسم لعرض كشفه. لا تحتاج إلى إدخال حركات هنا."
+            : "Select an account to view its statement."}
         </p>
       ) : loading ? (
-        <p>جارٍ إعداد التقرير…</p>
+        <p>{isAr ? "جارٍ إعداد التقرير…" : "Loading report…"}</p>
       ) : (
         <DataTable
           rows={rows}
           columns={columns.map(([key, label]) => ({ key, label }))}
+          metadata={reportMetadata}
+          summaryRows={isBalanceSheet ? balanceSheetSummary : undefined}
+          summaryTitle={
+            isAr
+              ? "ملخص المركز المالي ومعادلة الاتزان"
+              : "Balance Sheet Equation Summary"
+          }
+          summaryFooter={summaryFooter}
+          filename={reportFilename}
         />
       )}
     </Workspace>
