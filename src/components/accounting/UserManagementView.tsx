@@ -15,6 +15,8 @@ import {
   XCircle,
   Warning,
   Check,
+  Eye,
+  EyeSlash,
 } from "@phosphor-icons/react";
 
 export interface ManagedUser {
@@ -307,6 +309,7 @@ function UserEditorModal({
   const [username, setUsername] = useState(user?.username || "");
   const [email, setEmail] = useState(user?.email || "");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState(user?.role || "accountant");
   const [isActive, setIsActive] = useState(user ? user.isActive : true);
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(
@@ -480,17 +483,30 @@ function UserEditorModal({
               <label className="block text-xs font-semibold text-ink-900">
                 {mode === "create" ? "كلمة المرور *" : "تغيير كلمة المرور (اتركه فارغاً للإبقاء على الحالية)"}
               </label>
-              <input
-                type="password"
-                required={mode === "create"}
-                minLength={12}
-                autoComplete="new-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="12 حرفاً على الأقل"
-                dir="ltr"
-                className="w-full h-10 px-3 rounded-lg border border-border text-xs font-mono focus:outline-none focus:border-green-700"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  required={mode === "create"}
+                  autoComplete="new-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder={mode === "create" ? "أدخل كلمة المرور" : "كلمة المرور الجديدة"}
+                  dir="ltr"
+                  className="w-full h-10 px-3 pe-10 rounded-lg border border-border text-xs font-mono focus:outline-none focus:border-green-700"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? "إخفاء كلمة المرور" : "عرض كلمة المرور"}
+                  className="absolute inset-y-0 end-0 pe-3 flex items-center text-ink-400 hover:text-ink-700 focus:outline-none"
+                >
+                  {showPassword ? (
+                    <EyeSlash className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-1">
@@ -636,6 +652,7 @@ function PasswordResetModal({
   onError: (err: string) => void;
 }) {
   const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [busy, setBusy] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -645,8 +662,8 @@ function PasswordResetModal({
     setLocalError(null);
 
     try {
-      if (newPassword.length < 12) {
-        throw new Error("كلمة المرور يجب ألا تقل عن 12 حرفاً");
+      if (!newPassword.trim()) {
+        throw new Error("يرجى إدخال كلمة المرور الجديدة");
       }
 
       const res = await fetch(`/api/users/${user.id}`, {
@@ -695,19 +712,32 @@ function PasswordResetModal({
         <form onSubmit={handleReset} className="space-y-4">
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-ink-900">
-              كلمة المرور الجديدة (12 حرفاً على الأقل) *
+              كلمة المرور الجديدة *
             </label>
-            <input
-              type="password"
-              required
-              minLength={12}
-              autoComplete="new-password"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              placeholder="••••••••••••"
-              dir="ltr"
-              className="w-full h-10 px-3 rounded-lg border border-border text-xs font-mono focus:outline-none focus:border-green-700"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="أدخل كلمة المرور الجديدة"
+                dir="ltr"
+                className="w-full h-10 px-3 pe-10 rounded-lg border border-border text-xs font-mono focus:outline-none focus:border-green-700"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "إخفاء كلمة المرور" : "عرض كلمة المرور"}
+                className="absolute inset-y-0 end-0 pe-3 flex items-center text-ink-400 hover:text-ink-700 focus:outline-none"
+              >
+                {showPassword ? (
+                  <EyeSlash className="w-4 h-4" />
+                ) : (
+                  <Eye className="w-4 h-4" />
+                )}
+              </button>
+            </div>
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-border">

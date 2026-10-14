@@ -22,7 +22,7 @@ export const createUserSchema = z.object({
   username: usernameSchema,
   password: z
     .string()
-    .min(12, "كلمة المرور يجب ألا تقل عن 12 حرفاً")
+    .min(1, "كلمة المرور مطلوبة")
     .max(256),
   email: z
     .string()
@@ -53,7 +53,7 @@ export const updateUserSchema = z.object({
   permissions: z.array(z.string()).optional(),
   password: z
     .string()
-    .min(12, "كلمة المرور يجب ألا تقل عن 12 حرفاً")
+    .min(1, "كلمة المرور مطلوبة")
     .max(256)
     .optional()
     .or(z.literal("").transform(() => undefined)),

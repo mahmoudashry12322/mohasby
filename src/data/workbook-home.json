@@ -438,5 +438,15 @@
     "labelKey": "auditLog",
     "column": 4,
     "row": 5
+  },
+  {
+    "cell": "H12",
+    "label": "المستخدمون والصلاحيات",
+    "sheet": "المستخدمون والصلاحيات",
+    "group": "setup",
+    "page": "settings",
+    "labelKey": "settings",
+    "column": 4,
+    "row": 6
   }
 ]

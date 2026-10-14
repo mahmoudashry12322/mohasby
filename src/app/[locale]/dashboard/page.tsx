@@ -10,7 +10,7 @@ export default function DashboardHomePage() {
   const t = useTranslations("nav.items");
   const { isAdmin, canPage, isLoading } = usePermissions();
 
-  // For manager: preserves all 44 Excel buttons in original layout.
+  // For manager: preserves all 45 Excel buttons in original layout.
   // For employee: filters to permitted subset without gaps in dashboard grid.
   const visibleButtons = isAdmin
     ? buttons

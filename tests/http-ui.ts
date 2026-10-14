@@ -627,7 +627,7 @@ async function main() {
       await page.goto(base + "/ar/dashboard");
       const tiles = page.locator("[data-workbook-cell]");
       await tiles.first().waitFor();
-      assert.equal(await tiles.count(), 44);
+      assert.equal(await tiles.count(), 45);
       for (const b of homeButtons) {
         const tile = page.locator('[data-workbook-cell="' + b.cell + '"]');
         assert.equal((await tile.textContent())?.trim(), b.label);
@@ -919,7 +919,7 @@ async function main() {
           .waitFor({ state: "hidden" });
       }
       await page.goto(base + "/ar/dashboard");
-      assert.equal(await page.locator("[data-workbook-cell]").count(), 44);
+      assert.equal(await page.locator("[data-workbook-cell]").count(), 45);
       assert.ok(
         await page.evaluate(
           () => document.documentElement.scrollWidth <= window.innerWidth,

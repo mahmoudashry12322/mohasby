@@ -49,8 +49,8 @@ test("incomplete entry gives row issues; empty opposite amount is zero", () => {
   );
 });
 
-test("all 44 workbook pages have guides and valid related links; route matching is exact", () => {
-  assert.equal(workbookGuides.length, 44);
+test("all 45 workbook pages have guides and valid related links; route matching is exact", () => {
+  assert.equal(workbookGuides.length, 45);
   for (const page of workbookGuides) {
     assert.equal(workbookPage("/ar" + page.href)?.page, page.page);
     assert.equal(workbookPage("/en" + page.href)?.page, page.page);

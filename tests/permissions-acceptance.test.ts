@@ -378,7 +378,7 @@ test("Permissions & User Management Acceptance Suite", async (t) => {
     assert.equal(demoted.role, "accountant");
   });
 
-  await t.test("11. Manager retains all 44 workbook buttons; employee sees continuous repacked grid", async () => {
+  await t.test("11. Manager retains all 45 workbook buttons; employee sees continuous repacked grid", async () => {
     const adminUser = {
       id: adminA.id,
       companyId: companyA.id,
@@ -397,20 +397,24 @@ test("Permissions & User Management Acceptance Suite", async (t) => {
 
     // Total workbook pages
     const totalWorkbookButtons = workbookHome.length;
-    assert.equal(totalWorkbookButtons, 44);
+    assert.equal(totalWorkbookButtons, 45);
 
-    // Admin sees all 44 buttons
+    // Admin sees all 45 buttons
     const adminVisible = workbookHome.filter((item) =>
       canAccessPage(adminUser, item.page),
     );
-    assert.equal(adminVisible.length, 44);
+    assert.equal(adminVisible.length, 45);
 
     // Stock user sees only stock-related buttons
     const stockVisible = workbookHome.filter((item) =>
       canAccessPage(stockUser, item.page),
     );
     assert.ok(stockVisible.length > 0);
-    assert.ok(stockVisible.length < 44);
+    assert.ok(stockVisible.length < 45);
+
+    // Settings (Users & Permissions) accessible to admin but not standard stock employee
+    assert.equal(canAccessPage(adminUser, "settings"), true);
+    assert.equal(canAccessPage(stockUser, "settings"), false);
 
     // Verify all stock visible items are indeed stock related
     for (const item of stockVisible) {

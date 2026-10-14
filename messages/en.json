@@ -82,7 +82,7 @@
       "costItems": "Cost Items",
       "farms": "Farms",
       "weighTicket": "Weigh Ticket",
-      "settings": "Settings",
+      "settings": "Users & Permissions",
       "auditLog": "Audit Log",
       "documents": "Sales and purchases",
       "payslip": "Employee pay statement"
@@ -150,7 +150,7 @@
       "costItemsDesc": "Cost Items",
       "farmsDesc": "Farms",
       "weighTicketDesc": "Weigh Ticket",
-      "settingsDesc": "Settings",
+      "settingsDesc": "Users, custom permissions, and company settings.",
       "auditLogDesc": "Audit Log",
       "documentsDesc": "Accounting documents",
       "payslipDesc": "Employee pay statement"
