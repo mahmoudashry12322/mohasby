@@ -19,8 +19,20 @@ export function verifyPassword(password: string, stored: string) {
     expected = Buffer.from(hash, "hex");
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
-export async function currentUser() {
-  const token = (await cookies()).get(SESSION_COOKIE)?.value;
+export async function currentUser(request?: Request) {
+  let token: string | undefined;
+  if (request) {
+    const cookieHeader = request.headers.get("cookie") || "";
+    const match = cookieHeader.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
+    if (match) token = match[1];
+  }
+  if (!token) {
+    try {
+      token = (await cookies()).get(SESSION_COOKIE)?.value;
+    } catch {
+      // Outside Next.js request cookies() context
+    }
+  }
   if (!token || !/^[a-f0-9]{64}$/.test(token)) return null;
   const session = await prisma.session.findUnique({
     where: { tokenHash: digest(token) },
@@ -45,7 +57,7 @@ export async function authorize(
     if (request.headers.get("sec-fetch-site") === "cross-site")
       throw new HttpError(403, "مصدر الطلب غير مسموح");
   }
-  const user = await currentUser();
+  const user = await currentUser(request);
   if (!user) throw new HttpError(401, "سجل الدخول أولاً");
   if ((write && user.role === "auditor") || (admin && user.role !== "admin"))
     throw new HttpError(403, "ليس لديك صلاحية");

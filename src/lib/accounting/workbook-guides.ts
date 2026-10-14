@@ -141,6 +141,16 @@ const specific: Record<string, PageGuide> = {
     note: "هذه نتائج تحليلية لا تنشئ قيدًا تلقائيًا. جهّز أسماء الشركاء من إدارة الشركاء في توزيع حقوق ملكية.",
     related: ["income-statement", "trial-balance", "equity-summary"],
   },
+  "audit-log": {
+    mode: "report",
+    steps: [
+      "اختر معايير البحث مثل نوع العملية أو المستخدم أو الفترة الزمنية.",
+      "راجع رقم القيد وبيانه والمنفذ وتفاصيل التغيير في جدول السجل.",
+      "اضغط على زر عرض التفاصيل للاطلاع على المعرف التقني وكافة التغييرات المسجلة.",
+    ],
+    note: "سجل المراجعة والنشاط الرقابي غير قابل للتعديل أو الحذف، ويحتفظ بكافة العمليات الحسابية والإدارية.",
+    related: ["journal-entries", "chart-of-accounts"],
+  },
 };
 export const workbookGuides = home.map((button) => {
   const m = modules[button.page];

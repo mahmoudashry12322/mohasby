@@ -35,10 +35,34 @@ export async function GET(request: NextRequest) {
       if (to) where.createdAt.lte = new Date(to + "T23:59:59.999Z");
     }
     if (search) {
-      where.OR = [
+      const orClauses: Array<Record<string, any>> = [
         { action: { contains: search, mode: "insensitive" } },
         { entityId: { contains: search, mode: "insensitive" } },
       ];
+
+      const searchNum = parseInt(search, 10);
+      const entryConditions: Array<Record<string, any>> = [];
+      if (!isNaN(searchNum) && String(searchNum) === search) {
+        entryConditions.push({ number: searchNum });
+      }
+      entryConditions.push({ description: { contains: search, mode: "insensitive" } });
+
+      const matchingEntries = await prisma.journalEntry.findMany({
+        where: {
+          companyId: user.companyId,
+          OR: entryConditions,
+        },
+        select: { id: true },
+        take: 50,
+      });
+
+      if (matchingEntries.length > 0) {
+        orClauses.push({
+          entityId: { in: matchingEntries.map((e) => e.id) },
+        });
+      }
+
+      where.OR = orClauses;
     }
 
     const [logs, total, users] = await prisma.$transaction([
@@ -58,6 +82,27 @@ export async function GET(request: NextRequest) {
     const userMap = new Map<string, { name: string; username: string | null }>();
     users.forEach((u: any) => userMap.set(u.id, { name: u.name, username: u.username }));
 
+    const possibleEntryIds = new Set<string>();
+    for (const log of logs) {
+      if (log.entityId) possibleEntryIds.add(log.entityId);
+      const d = log.detail as any;
+      if (d?.entryId) possibleEntryIds.add(String(d.entryId));
+      if (d?.reversalId) possibleEntryIds.add(String(d.reversalId));
+    }
+
+    const entries =
+      possibleEntryIds.size > 0
+        ? await prisma.journalEntry.findMany({
+            where: {
+              companyId: user.companyId,
+              id: { in: Array.from(possibleEntryIds) },
+            },
+            select: { id: true, number: true, description: true },
+          })
+        : [];
+
+    const entryMap = new Map(entries.map((e) => [e.id, e]));
+
     const formattedRows = logs.map((log) => {
       const detail = (log.detail as Record<string, any>) || {};
       const fallbackUser = userMap.get(log.userId);
@@ -65,6 +110,22 @@ export async function GET(request: NextRequest) {
         detail.actorName || fallbackUser?.name || "مستخدم #" + log.userId.slice(-6);
       const actorUsername =
         detail.actorUsername || fallbackUser?.username || "";
+
+      const matchedEntry =
+        entryMap.get(log.entityId) ||
+        (detail.entryId ? entryMap.get(String(detail.entryId)) : undefined);
+
+      const entryNumber =
+        matchedEntry?.number ??
+        (typeof detail.entryNumber === "number"
+          ? detail.entryNumber
+          : typeof detail.number === "number"
+          ? detail.number
+          : null);
+
+      const entryDescription =
+        matchedEntry?.description ??
+        (detail.entryDescription || detail.description || null);
 
       return {
         id: log.id,
@@ -74,6 +135,8 @@ export async function GET(request: NextRequest) {
         actorUsername,
         action: log.action,
         entityId: log.entityId,
+        entryNumber,
+        entryDescription,
         detail,
       };
     });

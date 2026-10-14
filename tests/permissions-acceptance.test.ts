@@ -378,7 +378,7 @@ test("Permissions & User Management Acceptance Suite", async (t) => {
     assert.equal(demoted.role, "accountant");
   });
 
-  await t.test("11. Manager retains all 43 workbook buttons; employee sees continuous repacked grid", async () => {
+  await t.test("11. Manager retains all 44 workbook buttons; employee sees continuous repacked grid", async () => {
     const adminUser = {
       id: adminA.id,
       companyId: companyA.id,
@@ -397,20 +397,20 @@ test("Permissions & User Management Acceptance Suite", async (t) => {
 
     // Total workbook pages
     const totalWorkbookButtons = workbookHome.length;
-    assert.equal(totalWorkbookButtons, 43);
+    assert.equal(totalWorkbookButtons, 44);
 
-    // Admin sees all 43 buttons
+    // Admin sees all 44 buttons
     const adminVisible = workbookHome.filter((item) =>
       canAccessPage(adminUser, item.page),
     );
-    assert.equal(adminVisible.length, 43);
+    assert.equal(adminVisible.length, 44);
 
     // Stock user sees only stock-related buttons
     const stockVisible = workbookHome.filter((item) =>
       canAccessPage(stockUser, item.page),
     );
     assert.ok(stockVisible.length > 0);
-    assert.ok(stockVisible.length < 43);
+    assert.ok(stockVisible.length < 44);
 
     // Verify all stock visible items are indeed stock related
     for (const item of stockVisible) {
@@ -437,10 +437,71 @@ test("Permissions & User Management Acceptance Suite", async (t) => {
     assert.equal(can(noAuditUser, "audit.view"), false);
     assert.equal(can(auditUser, "audit.view"), true);
     assert.equal(can(adminA, "audit.view"), true); // Admin always can
+
+    // Page access verification
+    assert.equal(canAccessPage(noAuditUser, "audit-log"), false);
+    assert.equal(canAccessPage(auditUser, "audit-log"), true);
+    assert.equal(canAccessPage(adminA, "audit-log"), true);
+
+    // Create journal entry and test audit log record with entry number and description
+    const testEntry = await prisma.journalEntry.create({
+      data: {
+        companyId: companyA.id,
+        number: 8888,
+        date: new Date(),
+        description: "قيد تجريبي للاختبار",
+        createdBy: adminA.id,
+        requestKey: "test-audit-req-8888",
+      },
+    });
+
+    const testLog = await prisma.auditLog.create({
+      data: {
+        companyId: companyA.id,
+        userId: adminA.id,
+        action: "ENTRY_POSTED",
+        entityId: testEntry.id,
+        detail: {
+          actorName: adminA.name,
+          actorUsername: adminA.username,
+        },
+      },
+    });
+
+    // Create active session for adminA
+    const adminToken = "d".repeat(64);
+    await prisma.session.create({
+      data: {
+        userId: adminA.id,
+        tokenHash: digest(adminToken),
+        expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+      },
+    });
+
+    // Direct API test
+    const { NextRequest } = await import("next/server");
+    const { GET } = await import("../src/app/api/audit/route");
+    const req = new NextRequest("http://localhost:3000/api/audit?search=8888", {
+      headers: {
+        cookie: `mohasby_session=${adminToken}`,
+      },
+    });
+    const res = await GET(req);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.equal(body.success, true);
+    const found = body.rows.find((r: any) => r.id === testLog.id);
+    assert.ok(found, "Test audit log should be found");
+    assert.equal(found.entryNumber, 8888);
+    assert.equal(found.entryDescription, "قيد تجريبي للاختبار");
+    assert.equal(found.entityId, testEntry.id);
   });
 
   // Teardown: Clean up test companies and their cascaded relations
   await prisma.auditLog.deleteMany({
+    where: { companyId: { in: [companyA.id, companyB.id] } },
+  });
+  await prisma.journalEntry.deleteMany({
     where: { companyId: { in: [companyA.id, companyB.id] } },
   });
   await prisma.session.deleteMany({

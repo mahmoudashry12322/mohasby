@@ -186,16 +186,85 @@ export function ReportView({
         isAr ? "فرق المطابقة مع حركة النقدية" : "Reconciliation Difference",
       ]);
   }
-  if (report === "parties")
+  if (report === "parties") {
     columns = [
-      ["code", "الكود"],
-      ["name", "الاسم"],
-      ["type", "النوع"],
-      ["openingBalance", "رصيد سابق"],
-      ["debit", "مدين الفترة"],
-      ["credit", "دائن الفترة"],
-      ["balance", "الرصيد"],
+      ["code", isAr ? "الكود" : "Code"],
+      ["name", isAr ? "الاسم" : "Name"],
+      ["type", isAr ? "النوع" : "Type"],
+      ["openingBalance", isAr ? "رصيد سابق" : "Prior Balance"],
+      ["debit", isAr ? "مدين الفترة" : "Period Debit"],
+      ["credit", isAr ? "دائن الفترة" : "Period Credit"],
+      ["balance", isAr ? "الرصيد" : "Balance"],
     ];
+
+    const partyTypeLabels: Record<string, { ar: string; en: string }> = {
+      CUSTOMER: { ar: "عميل", en: "Customer" },
+      SUPPLIER: { ar: "مورد", en: "Supplier" },
+      PARTNER: { ar: "شريك", en: "Partner" },
+      EMPLOYEE: { ar: "موظف", en: "Employee" },
+    };
+
+    rows = (data.rows || []).map((r) => {
+      const rawType = String(r.type || "").toUpperCase();
+      const typeLabel = partyTypeLabels[rawType]
+        ? isAr
+          ? partyTypeLabels[rawType].ar
+          : partyTypeLabels[rawType].en
+        : String(r.type || "—");
+
+      const num = Number(r.balance || 0);
+      let balanceDisplay = String(r.balance ?? "0.00");
+
+      if (num < 0) {
+        const absVal = Math.abs(num).toFixed(2);
+        if (rawType === "SUPPLIER") {
+          balanceDisplay = isAr
+            ? `${absVal} دائن — مستحق للمورد`
+            : `${absVal} Cr — Payable to Supplier`;
+        } else if (rawType === "CUSTOMER") {
+          balanceDisplay = isAr
+            ? `${absVal} دائن — رصيد دائن للعميل`
+            : `${absVal} Cr — Customer Credit`;
+        } else {
+          balanceDisplay = isAr ? `${absVal} دائن` : `${absVal} Cr`;
+        }
+      } else if (num > 0) {
+        const val = num.toFixed(2);
+        if (rawType === "CUSTOMER") {
+          balanceDisplay = isAr
+            ? `${val} مدين — مستحق على العميل`
+            : `${val} Dr — Receivable from Customer`;
+        } else if (rawType === "SUPPLIER") {
+          balanceDisplay = isAr
+            ? `${val} مدين — رصيد مقدم للمورد`
+            : `${val} Dr — Advance to Supplier`;
+        } else {
+          balanceDisplay = isAr ? `${val} مدين` : `${val} Dr`;
+        }
+      } else {
+        balanceDisplay = isAr ? "0.00 (متوازن)" : "0.00 (Balanced)";
+      }
+
+      const openNum = Number(r.openingBalance || 0);
+      let openingDisplay = String(r.openingBalance ?? "0.00");
+      if (openNum < 0) {
+        openingDisplay = isAr
+          ? `${Math.abs(openNum).toFixed(2)} دائن`
+          : `${Math.abs(openNum).toFixed(2)} Cr`;
+      } else if (openNum > 0) {
+        openingDisplay = isAr
+          ? `${openNum.toFixed(2)} مدين`
+          : `${openNum.toFixed(2)} Dr`;
+      }
+
+      return {
+        ...r,
+        type: typeLabel,
+        openingBalance: openingDisplay,
+        balance: balanceDisplay,
+      };
+    });
+  }
   const isBalanceSheet = report === "financial" && !view;
 
   const fromDate = p.get("from") || (data.fromDate as string) || "";
@@ -289,7 +358,9 @@ export function ReportView({
 
   const reportFilename = isBalanceSheet
     ? `${isAr ? "قائمة-المركز-المالي" : "balance-sheet"}${toDate ? `-${toDate}` : ""}.csv`
-    : undefined;
+    : report === "parties"
+      ? `${isAr ? "تقرير-المديونية" : "outstanding-balances"}${toDate ? `-${toDate}` : ""}.csv`
+      : undefined;
 
   return (
     <Workspace title={title} error={error}>

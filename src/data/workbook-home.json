@@ -428,5 +428,15 @@
     "labelKey": "exportCosts",
     "column": 8,
     "row": 6
+  },
+  {
+    "cell": "H10",
+    "label": "سجل المراجعة",
+    "sheet": "سجل المراجعة",
+    "group": "setup",
+    "page": "audit-log",
+    "labelKey": "auditLog",
+    "column": 4,
+    "row": 5
   }
 ]

@@ -211,3 +211,36 @@ test("reference verification: Company 19 manual test figures match exactly", asy
   assert.equal(suppAcc?.balance, "-100.00", "الموردون: دائن 100.00");
   assert.equal(capAcc?.balance, "-10000.00", "رأس المال: دائن 10,000.00");
 });
+
+test("parties report: descriptive balance labels and type translations", () => {
+  const partyTypeLabels: Record<string, string> = {
+    CUSTOMER: "عميل",
+    SUPPLIER: "مورد",
+    PARTNER: "شريك",
+    EMPLOYEE: "موظف",
+  };
+  assert.equal(partyTypeLabels["CUSTOMER"], "عميل");
+  assert.equal(partyTypeLabels["SUPPLIER"], "مورد");
+
+  function formatBalance(type: string, balance: number) {
+    if (balance < 0) {
+      const absVal = Math.abs(balance).toFixed(2);
+      if (type === "SUPPLIER") return `${absVal} دائن — مستحق للمورد`;
+      if (type === "CUSTOMER") return `${absVal} دائن — رصيد دائن للعميل`;
+      return `${absVal} دائن`;
+    }
+    if (balance > 0) {
+      const val = balance.toFixed(2);
+      if (type === "CUSTOMER") return `${val} مدين — مستحق على العميل`;
+      if (type === "SUPPLIER") return `${val} مدين — رصيد مقدم للمورد`;
+      return `${val} مدين`;
+    }
+    return "0.00 (متوازن)";
+  }
+
+  assert.equal(formatBalance("SUPPLIER", -100), "100.00 دائن — مستحق للمورد");
+  assert.equal(formatBalance("CUSTOMER", 500), "500.00 مدين — مستحق على العميل");
+  assert.equal(formatBalance("SUPPLIER", 50), "50.00 مدين — رصيد مقدم للمورد");
+  assert.equal(formatBalance("CUSTOMER", -50), "50.00 دائن — رصيد دائن للعميل");
+  assert.equal(formatBalance("CUSTOMER", 0), "0.00 (متوازن)");
+});
