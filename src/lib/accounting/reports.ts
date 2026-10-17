@@ -1,6 +1,6 @@
 import { Prisma } from "@prisma/client";
 import prisma from "@/lib/prisma";
-import { D, money, sum } from "./calculations";
+import { D, money, sum, weighTicket } from "./calculations";
 import { dateOnly, Tx } from "./ledger";
 import { HttpError } from "@/lib/server/http";
 import { stockBalances } from "./periodic-stock";
@@ -131,10 +131,48 @@ export async function ledgerReport(
       { id: "asc" },
     ],
   });
+  const documentsByEntry = new Map(
+    (lines.length
+      ? await db.stockMovement.findMany({
+          where: {
+            companyId,
+            entryId: { in: [...new Set(lines.map((l) => l.entryId))] },
+          },
+          select: { entryId: true, metadata: true, quantity: true },
+        })
+      : []
+    ).map((m) => [m.entryId, m]),
+  );
+  const documentNames: Record<string, string> = {
+    PURCHASE: "مشتريات",
+    SALE: "مبيعات",
+    PURCHASE_RETURN: "مرتجع مشتريات",
+    SALE_RETURN: "مرتجع مبيعات",
+  };
   let balance = D(opening._sum.debit || 0).sub(opening._sum.credit || 0);
   const openingBalance = balance.toFixed(2);
   const rows = lines.map((l) => {
     balance = balance.add(l.debit).sub(l.credit);
+    const movement = documentsByEntry.get(l.entryId);
+    const meta = movement?.metadata as Record<string, any> | undefined;
+    let weightDetails: Record<string, string> = {};
+    if (meta?.weigh) {
+      try {
+        const w = weighTicket(meta.weigh);
+        weightDetails = {
+          bags: String(meta.weigh.bags),
+          gross: w.gross.toString(),
+          bagLoss: w.bagLoss.toString(),
+          discountRate: D(meta.weigh.discountRate).mul(100).toString() + "%",
+          inspectionRate:
+            D(meta.weigh.inspectionRate).mul(100).toString() + "%",
+          net: w.net.toString(),
+          pricePerTonne: String(meta.weigh.pricePerTonne),
+        };
+      } catch {
+        /* Legacy malformed weight metadata must not break the financial ledger. */
+      }
+    }
     return {
       id: l.id,
       date: l.entry.date.toISOString().slice(0, 10),
@@ -142,7 +180,7 @@ export async function ledgerReport(
       account: l.accountCode,
       name: l.account.name,
       description: l.description || l.entry.description,
-      document: l.entry.document,
+      document: documentNames[l.entry.document] || l.entry.document,
       reference: l.entry.reference,
       party: l.party,
       costCenter: l.costCenter,
@@ -154,6 +192,7 @@ export async function ledgerReport(
       debit: l.debit.toFixed(2),
       credit: l.credit.toFixed(2),
       balance: balance.toFixed(2),
+      ...weightDetails,
     };
   });
   return {
@@ -266,6 +305,8 @@ export async function financialStatements(
     decreases: Prisma.Decimal.max(profit.neg(), 0).toFixed(2),
     closing: allProfit.toFixed(2),
   });
+  const totalEquity = equity.add(allProfit);
+  const totalLiabilitiesAndEquity = liabilities.add(totalEquity);
   return {
     rows: trial,
     incomeRows,
@@ -276,7 +317,9 @@ export async function financialStatements(
     liabilities: liabilities.toFixed(2),
     equity: equity.toFixed(2),
     unclosedProfit: allProfit.toFixed(2),
-    difference: assets.sub(liabilities).sub(equity).sub(allProfit).toFixed(2),
+    totalEquity: totalEquity.toFixed(2),
+    totalLiabilitiesAndEquity: totalLiabilitiesAndEquity.toFixed(2),
+    difference: assets.sub(totalLiabilitiesAndEquity).toFixed(2),
     pendingInventoryAdjustment: stockValue.sub(stockBook).toFixed(2),
   };
 }

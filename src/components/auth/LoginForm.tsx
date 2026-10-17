@@ -19,10 +19,9 @@ import {
 } from "lucide-react";
 
 const loginSchema = z.object({
-  email: z
+  identifier: z
     .string()
-    .min(1, "يرجى إدخال البريد الإلكتروني")
-    .email("صيغة البريد الإلكتروني غير صحيحة"),
+    .min(1, "يرجى إدخال اسم المستخدم أو البريد الإلكتروني"),
   password: z
     .string()
     .min(1, "يرجى إدخال كلمة المرور")
@@ -51,7 +50,7 @@ export const LoginForm: React.FC = () => {
     resolver: zodResolver(loginSchema),
     mode: "onBlur", // Validate strictly on blur per Part 2.5
     defaultValues: {
-      email: "",
+      identifier: "",
       password: "",
       rememberMe: true,
     },
@@ -65,7 +64,12 @@ export const LoginForm: React.FC = () => {
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          identifier: data.identifier,
+          email: data.identifier, // legacy fallback compatibility
+          password: data.password,
+          rememberMe: data.rememberMe,
+        }),
       });
 
       const result = await res.json();
@@ -127,32 +131,35 @@ export const LoginForm: React.FC = () => {
 
       {/* The Form */}
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-5" noValidate>
-        {/* Email Field */}
+        {/* Identifier (Username or Email) Field */}
         <div className="space-y-1.5">
           <label
-            htmlFor="email"
+            htmlFor="identifier"
             className="block text-xs font-semibold text-ink-900"
           >
-            {t("emailLabel")}
+            {t("identifierLabel") || "اسم المستخدم أو البريد الإلكتروني"}
           </label>
           <div className="relative">
             <input
-              id="email"
-              type="email"
+              id="identifier"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               dir="ltr"
-              {...register("email")}
-              placeholder={t("emailPlaceholder")}
+              {...register("identifier")}
+              placeholder={t("identifierPlaceholder") || "اسم المستخدم أو البريد الإلكتروني"}
               disabled={isLoading}
               className={`w-full h-12 px-4 rounded-input border bg-white text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none focus:border-green-700 focus:ring-2 focus:ring-accent-500/30 transition-all font-mono ${
-                errors.email && touchedFields.email
+                errors.identifier && touchedFields.identifier
                   ? "border-danger focus:border-danger focus:ring-danger/20"
                   : "border-border"
               }`}
             />
           </div>
-          {errors.email && (
+          {errors.identifier && (
             <p className="text-[11px] text-danger font-medium mt-1 animate-fade-in">
-              {errors.email.message}
+              {errors.identifier.message}
             </p>
           )}
         </div>
@@ -179,6 +186,7 @@ export const LoginForm: React.FC = () => {
             <input
               id="password"
               type={showPassword ? "text" : "password"}
+              autoComplete="current-password"
               dir="ltr"
               {...register("password")}
               placeholder={t("passwordPlaceholder")}

@@ -18,6 +18,17 @@ import prisma from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 
 export const stockSchema = z.object({
+  logistics: z
+    .object({
+      shipment: z.string().max(200),
+      truck: z.string().max(100),
+      farm: z.string().max(200),
+      pivot: z.string().max(200),
+      color: z.string().max(100),
+      notes: z.string().max(1000),
+    })
+    .optional(),
+  weigh: z.object({ weight: decimal, tare: decimal, bags: decimal }).optional(),
   date: dateOnly,
   itemId: z.string().min(1),
   warehouse: z.string().min(1),
@@ -175,17 +186,15 @@ export async function moveStockTx(
       isActive: true,
     },
   });
-  if (
-    !item ||
-    !(await tx.register.findFirst({
-      where: {
-        companyId: actor.companyId,
-        kind: "warehouses",
-        code: input.warehouse,
-        isActive: true,
-      },
-    }))
-  )
+  const wh = await tx.register.findFirst({
+    where: {
+      companyId: actor.companyId,
+      kind: "warehouses",
+      code: input.warehouse,
+      isActive: true,
+    },
+  });
+  if (!item || !wh)
     throw new HttpError(400, "الصنف أو المخزن غير موجود");
   if (
     input.costCenter &&
@@ -200,7 +209,12 @@ export async function moveStockTx(
   )
     throw new HttpError(400, "مركز التكلفة غير موجود");
   const config = item.data as Record<string, string>,
-    q = D(input.quantity);
+    q = input.weigh
+      ? D(input.weigh.weight).sub(input.weigh.tare)
+      : D(input.quantity);
+  if (input.weigh && config.unit !== "kg")
+    throw new HttpError(400, "إذن الوزن يحتاج صنفًا بوحدة كيلوجرام");
+  if (q.lte(0)) throw new HttpError(400, "الوزن يجب أن يكون أكبر من الفارغ");
   if (q.decimalPlaces() > 3) throw new HttpError(400, "دقة الكمية ثلاث منازل");
   const direction = ["OPENING", "RECEIPT", "RETURN_IN", "COUNT_GAIN"].includes(
     input.kind,
@@ -306,10 +320,13 @@ export async function moveStockTx(
       entryId,
       requestKey: input.requestKey,
       metadata: {
+        ...(input.logistics ? { logistics: input.logistics } : {}),
+        ...(input.weigh ? { stockWeigh: input.weigh } : {}),
+        description: input.description,
         costCenter: input.costCenter,
         costItem: input.costItem,
         stockRequestHash: requestDigest(input),
-        pricePerTonne: D(input.unitCost).mul(1000).toString(),
+        pricePerTonne: financial ? D(input.unitCost).mul(1000).toString() : "0",
       },
     },
   });
@@ -317,8 +334,21 @@ export async function moveStockTx(
   if (balances.some((b) => b.itemId === item.id && D(b.value).lt(0)))
     throw new HttpError(400, "مرتجع المشتريات يتجاوز قيمة البضاعة المتاحة");
   await audit(tx, actor, "STOCK_POSTED", movement.id, {
+    kind: movement.kind,
+    reference: movement.reference,
+    date: movement.date.toISOString().slice(0, 10),
+    itemId: item.id,
+    itemCode: item.code,
+    itemName: item.name,
+    warehouse: movement.warehouse,
+    warehouseName: wh.name,
+    quantity: movement.quantity.toString(),
+    unit: config.unit || "",
+    movementId: movement.id,
     entryId: entryId || null,
     method: "PERIODIC_WEIGHTED_AVERAGE",
+    valuationMethod: "متوسط تكلفة الفترة",
+    hasImmediateEntry: Boolean(entryId),
   });
   return movement;
 }

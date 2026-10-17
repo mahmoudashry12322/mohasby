@@ -82,7 +82,7 @@
       "costItems": "Cost Items",
       "farms": "Farms",
       "weighTicket": "Weigh Ticket",
-      "settings": "Settings",
+      "settings": "Users & Permissions",
       "auditLog": "Audit Log",
       "documents": "Sales and purchases",
       "payslip": "Employee pay statement"
@@ -150,7 +150,7 @@
       "costItemsDesc": "Cost Items",
       "farmsDesc": "Farms",
       "weighTicketDesc": "Weigh Ticket",
-      "settingsDesc": "Settings",
+      "settingsDesc": "Users, custom permissions, and company settings.",
       "auditLogDesc": "Audit Log",
       "documentsDesc": "Accounting documents",
       "payslipDesc": "Employee pay statement"
@@ -412,15 +412,17 @@
     "chipBalanced": "Balanced ✓",
     "demoBadge": "Test credentials ready",
     "fillDemo": "Autofill Demo Account",
-    "emailLabel": "Email Address",
-    "emailPlaceholder": "demo@mohasby.app",
+    "emailLabel": "Username or Email Address",
+    "emailPlaceholder": "username or user@domain.com",
+    "identifierLabel": "Username or Email Address",
+    "identifierPlaceholder": "username or user@domain.com",
     "passwordLabel": "Password",
     "passwordPlaceholder": "••••••••••••",
     "rememberMe": "Remember me",
     "forgotPassword": "Forgot password?",
     "signInBtn": "Sign In",
     "signingIn": "Verifying & Posting...",
-    "errorInvalid": "Invalid credentials. Please verify your email and password and try again.",
+    "errorInvalid": "Invalid credentials. Please verify your username/email and password and try again.",
     "backHome": "Back to Home Page"
   },
   "shell": {

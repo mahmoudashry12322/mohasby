@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useTranslations, useLocale } from 'next-intl';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useTranslations, useLocale } from "next-intl";
 import {
   Plus,
   MagnifyingGlass,
@@ -12,17 +12,21 @@ import {
   ArrowClockwise,
   CheckCircle,
   BuildingOffice,
-} from '@phosphor-icons/react';
-import { Button } from '@/components/ui/Button';
-import { PageHeader } from '@/components/shell/PageHeader';
-import { AccountNode } from '@/app/api/accounts/route';
-import { AccountStatsBar } from './AccountStatsBar';
-import { AccountTree } from './AccountTree';
-import { AccountTable } from './AccountTable';
-import { AccountFormModal } from './AccountFormModal';
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/Button";
+import { PageHeader } from "@/components/shell/PageHeader";
+import { AccountNode } from "@/app/api/accounts/route";
+import { AccountStatsBar } from "./AccountStatsBar";
+import { AccountTree } from "./AccountTree";
+import { AccountTable } from "./AccountTable";
+import { AccountFormModal } from "./AccountFormModal";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 
 export const ChartOfAccountsView: React.FC = () => {
-  const t = useTranslations('coa');
+  const { can, isAdmin } = usePermissions();
+  const canCreate = isAdmin || can("accounts.create");
+  const canEdit = isAdmin || can("accounts.edit");
+  const t = useTranslations("coa");
   const locale = useLocale();
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -40,16 +44,33 @@ export const ChartOfAccountsView: React.FC = () => {
   });
 
   // UI state
-  const [viewMode, setViewMode] = useState<'tree' | 'table'>('tree');
-  const [classFilter, setClassFilter] = useState<string>('all');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [viewMode, setViewMode] = useState<"tree" | "table">("table");
+  const [classFilter, setClassFilter] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(
-    new Set(['1', '2', '3', '4', '5', '11', '12', '21', '31', '41', '51', '52', '53', '54'])
+    new Set([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "11",
+      "12",
+      "21",
+      "31",
+      "41",
+      "51",
+      "52",
+      "53",
+      "54",
+    ]),
   );
 
   // Modal state
   const [modalOpen, setModalOpen] = useState<boolean>(false);
-  const [editingAccount, setEditingAccount] = useState<AccountNode | null>(null);
+  const [editingAccount, setEditingAccount] = useState<AccountNode | null>(
+    null,
+  );
   const [parentCodeForNew, setParentCodeForNew] = useState<string | null>(null);
 
   // Success toast
@@ -65,19 +86,19 @@ export const ChartOfAccountsView: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const params = new URLSearchParams({ companyId: '1' });
-      if (classFilter !== 'all') {
-        params.append('class', classFilter);
+      const params = new URLSearchParams({ companyId: "1" });
+      if (classFilter !== "all") {
+        params.append("class", classFilter);
       }
       if (searchQuery.trim()) {
-        params.append('search', searchQuery.trim());
+        params.append("search", searchQuery.trim());
       }
 
       const res = await fetch(`/api/accounts?${params.toString()}`);
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'فشل في تحميل دليل الحسابات');
+        throw new Error(data.error || "فشل في تحميل دليل الحسابات");
       }
 
       setStats(data.stats);
@@ -91,7 +112,7 @@ export const ChartOfAccountsView: React.FC = () => {
       setTreeData(data.accounts || []);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'حدث خطأ أثناء تحميل الحسابات');
+      setError(err.message || "حدث خطأ أثناء تحميل الحسابات");
     } finally {
       setLoading(false);
     }
@@ -125,7 +146,7 @@ export const ChartOfAccountsView: React.FC = () => {
   };
 
   const collapseAll = () => {
-    setExpandedKeys(new Set(['1', '2', '3', '4', '5']));
+    setExpandedKeys(new Set(["1", "2", "3", "4", "5"]));
   };
 
   // Actions
@@ -143,9 +164,9 @@ export const ChartOfAccountsView: React.FC = () => {
 
   const handleModalSuccess = (account: AccountNode) => {
     if (editingAccount) {
-      showToast(t('updatedSuccess'));
+      showToast(t("updatedSuccess"));
     } else {
-      showToast(t('createdSuccess'));
+      showToast(t("createdSuccess"));
     }
     fetchAccounts();
   };
@@ -162,8 +183,8 @@ export const ChartOfAccountsView: React.FC = () => {
 
       {/* Page Header */}
       <PageHeader
-        title={t('title')}
-        description={t('subtitle')}
+        title={t("title")}
+        description={t("subtitle")}
         actions={
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-canvas border border-border text-xs text-ink-600">
@@ -171,14 +192,16 @@ export const ChartOfAccountsView: React.FC = () => {
               <span>شركة نموذجية للتجارة والصناعة (فرع 1)</span>
             </div>
 
-            <Button
-              variant="primary"
-              onClick={() => handleOpenAddModal()}
-              className="gap-2"
-            >
-              <Plus size={16} weight="bold" />
-              <span>{t('addAccount')}</span>
-            </Button>
+            {canCreate && (
+              <Button
+                variant="primary"
+                onClick={() => handleOpenAddModal()}
+                className="gap-2"
+              >
+                <Plus size={16} weight="bold" />
+                <span>{t("addAccount")}</span>
+              </Button>
+            )}
           </div>
         }
       />
@@ -202,7 +225,7 @@ export const ChartOfAccountsView: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder={t('searchPlaceholder')}
+            placeholder={t("searchPlaceholder")}
             className="w-full h-10 ps-10 pe-3 text-xs sm:text-sm bg-canvas border border-border rounded-lg text-ink-900 placeholder:text-ink-400 focus:bg-white focus:border-green-700 focus:ring-1 focus:ring-green-700 outline-none transition-all"
           />
         </div>
@@ -210,25 +233,25 @@ export const ChartOfAccountsView: React.FC = () => {
         {/* Right: View toggle & expand controls */}
         <div className="flex items-center gap-2 shrink-0">
           {/* Tree expand / collapse buttons (only in tree mode) */}
-          {viewMode === 'tree' && (
+          {viewMode === "tree" && (
             <div className="hidden sm:flex items-center gap-1 border-e border-border pe-2 me-1">
               <button
                 type="button"
                 onClick={expandAll}
-                title={t('expandAll')}
+                title={t("expandAll")}
                 className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs text-ink-600 hover:bg-canvas hover:text-ink-900 transition-colors"
               >
                 <ArrowsOutLineVertical size={16} />
-                <span className="hidden xl:inline">{t('expandAll')}</span>
+                <span className="hidden xl:inline">{t("expandAll")}</span>
               </button>
               <button
                 type="button"
                 onClick={collapseAll}
-                title={t('collapseAll')}
+                title={t("collapseAll")}
                 className="h-9 px-2.5 rounded-lg flex items-center gap-1.5 text-xs text-ink-600 hover:bg-canvas hover:text-ink-900 transition-colors"
               >
                 <ArrowsInLineVertical size={16} />
-                <span className="hidden xl:inline">{t('collapseAll')}</span>
+                <span className="hidden xl:inline">{t("collapseAll")}</span>
               </button>
             </div>
           )}
@@ -240,34 +263,37 @@ export const ChartOfAccountsView: React.FC = () => {
             title="تحديث البيانات"
             className="w-9 h-9 rounded-lg flex items-center justify-center text-ink-600 hover:bg-canvas hover:text-green-700 transition-colors border border-border"
           >
-            <ArrowClockwise size={16} className={loading ? 'animate-spin' : ''} />
+            <ArrowClockwise
+              size={16}
+              className={loading ? "animate-spin" : ""}
+            />
           </button>
 
           {/* View Mode Switcher (Tree vs Table) */}
           <div className="flex items-center p-1 bg-canvas border border-border rounded-lg">
             <button
               type="button"
-              onClick={() => setViewMode('tree')}
+              onClick={() => setViewMode("tree")}
               className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                viewMode === 'tree'
-                  ? 'bg-white text-green-800 shadow-xs'
-                  : 'text-ink-600 hover:text-ink-900'
+                viewMode === "tree"
+                  ? "bg-white text-green-800 shadow-xs"
+                  : "text-ink-600 hover:text-ink-900"
               }`}
             >
               <TreeStructure size={15} />
-              <span>{t('treeView')}</span>
+              <span>{t("treeView")}</span>
             </button>
             <button
               type="button"
-              onClick={() => setViewMode('table')}
+              onClick={() => setViewMode("table")}
               className={`flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-md transition-all ${
-                viewMode === 'table'
-                  ? 'bg-white text-green-800 shadow-xs'
-                  : 'text-ink-600 hover:text-ink-900'
+                viewMode === "table"
+                  ? "bg-white text-green-800 shadow-xs"
+                  : "text-ink-600 hover:text-ink-900"
               }`}
             >
               <Table size={15} />
-              <span>{t('tableView')}</span>
+              <span>{t("tableView")}</span>
             </button>
           </div>
         </div>
@@ -288,9 +314,11 @@ export const ChartOfAccountsView: React.FC = () => {
         </div>
       ) : (
         <div className="bg-white border border-border rounded-xl p-4 sm:p-6 shadow-xs">
-          {viewMode === 'tree' ? (
+          {viewMode === "tree" ? (
             <AccountTree
               accounts={treeData}
+              canCreate={canCreate}
+              canEdit={canEdit}
               onAddChild={(parentCode) => handleOpenAddModal(parentCode)}
               onEdit={(account) => handleOpenEditModal(account)}
               expandedKeys={expandedKeys}
@@ -299,6 +327,8 @@ export const ChartOfAccountsView: React.FC = () => {
           ) : (
             <AccountTable
               accounts={flatAccounts}
+              canCreate={canCreate}
+              canEdit={canEdit}
               onAddChild={(parentCode) => handleOpenAddModal(parentCode)}
               onEdit={(account) => handleOpenEditModal(account)}
             />

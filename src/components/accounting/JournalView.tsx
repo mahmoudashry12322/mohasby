@@ -1,5 +1,8 @@
 "use client";
 import React, { useState } from "react";
+import { EntrySheet } from "./EntrySheet";
+import { journalIssues } from "@/lib/accounting/entry-validation";
+import { useJournalDraft } from "./useJournalDraft";
 import templates from "@/data/cost-templates.json";
 import {
   api,
@@ -9,6 +12,8 @@ import {
   useLoad,
   Workspace,
 } from "./Workspace";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
+import clsx from "clsx";
 
 type Line = {
   accountCode: string;
@@ -26,8 +31,8 @@ type Line = {
 };
 const emptyLine = (): Line => ({
   accountCode: "",
-  debit: "0",
-  credit: "0",
+  debit: "",
+  credit: "",
   description: "",
   party: "",
   costCenter: "",
@@ -50,28 +55,42 @@ type Entry = {
   date: string;
   description: string;
   status: string;
+  reversalOf?: string | null;
+  reversedBy?: { id: string; number: number } | null;
+  reversedEntry?: { id: string; number: number } | null;
   lines: (Line & { account: { name: string } })[];
 };
 export function JournalView({
   title,
   kind = "GENERAL",
+  tools,
 }: {
   title: string;
   kind?: string;
+  tools?: React.ReactNode;
 }) {
-  const accounts = useLoad<{ accounts: Account[] }>("/api/accounts?flat=true", {
-    accounts: [],
-  });
+  const { can, isAdmin } = usePermissions();
+  const canCreate = isAdmin || can("journal.create");
+  const canEdit = isAdmin || can("journal.edit");
+  const canPost = isAdmin || can("journal.post");
+  const canVoid = isAdmin || can("journal.void");
+  const canReverse = isAdmin || can("journal.reverse");
+  const canCreateOrEdit = canCreate || canEdit;
+
+  const accounts = useLoad<{ accounts: Account[] }>(
+    canCreateOrEdit ? "/api/accounts?flat=true&lookup=true" : null,
+    { accounts: [] },
+  );
   const parties = useLoad<{ rows: { code: string; name: string }[] }>(
-    "/api/registers/parties",
+    canCreateOrEdit ? "/api/registers/parties?lookup=true" : null,
     { rows: [] },
   );
   const centers = useLoad<{ rows: { code: string; name: string }[] }>(
-    "/api/registers/cost-centers",
+    canCreateOrEdit ? "/api/registers/cost-centers?lookup=true" : null,
     { rows: [] },
   );
   const employees = useLoad<{ rows: { code: string; name: string }[] }>(
-    "/api/registers/employees",
+    canCreateOrEdit ? "/api/registers/employees?lookup=true" : null,
     { rows: [] },
   );
   const [page, setPage] = useState(1);
@@ -88,7 +107,29 @@ export function JournalView({
     [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false),
-    [dimensions, setDimensions] = useState(false);
+    [dimensions, setDimensions] = useState(false),
+    [advancedDimensions, setAdvancedDimensions] = useState(false),
+    [fitScreen, setFitScreen] = useState(true);
+  const validation = journalIssues(lines);
+  const [attempted, setAttempted] = useState(false);
+  const draft = useJournalDraft(
+    kind,
+    { date, description, document, reference, requestKey, lines },
+    (value) => {
+      setDate(value.date);
+      setDescription(value.description);
+      setDocument(value.document);
+      setReference(value.reference);
+      setKey(value.requestKey);
+      setLines(
+        value.lines.map((l) => ({
+          ...l,
+          debit: l.debit === "0" ? "" : (l.debit ?? ""),
+          credit: l.credit === "0" ? "" : (l.credit ?? ""),
+        })),
+      );
+    },
+  );
   function change(i: number, field: keyof Line, value: string) {
     setLines((ls) =>
       ls.map((l, j) => (j === i ? { ...l, [field]: value } : l)),
@@ -96,12 +137,28 @@ export function JournalView({
   }
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    setAttempted(true);
+    setMessage("");
+    if (
+      !date ||
+      !description.trim() ||
+      Object.keys(validation.issues).length ||
+      !validation.balanced
+    ) {
+      setError(
+        !date || !description.trim()
+          ? "أكمل التاريخ والبيان أولًا. الإدخال محفوظ مؤقتًا في هذا التبويب."
+          : Object.keys(validation.issues).length
+            ? "راجع السطور المحددة أسفل الحسابات. البيانات لم تُحفظ في الدفاتر."
+            : "القيد غير متوازن: إجمالي المدين لازم يساوي إجمالي الدائن. أكمل القيد ثم احفظه.",
+      );
+      return;
+    }
     setBusy(true);
     setError("");
-    setMessage("");
-    const key = requestKey || crypto.randomUUID();
-    setKey(key);
     try {
+      const key = requestKey || crypto.randomUUID();
+      setKey(key);
       const res = await api("/api/journal", {
         date,
         description,
@@ -109,13 +166,21 @@ export function JournalView({
         reference,
         kind,
         requestKey: key,
-        lines,
+        lines: lines.map((l) => ({
+          ...l,
+          debit: l.debit.trim() || "0",
+          credit: l.credit.trim() || "0",
+        })),
       });
       setMessage(
         `تم حفظ المسودة رقم ${res.entry.number}. راجعها ثم اضغط ترحيل.`,
       );
       setLines([emptyLine(), emptyLine()]);
       setDescription("");
+      setDocument("");
+      setReference("");
+      setAttempted(false);
+      draft.clearNotice();
       setKey("");
       await entries.reload();
     } catch (e) {
@@ -124,9 +189,39 @@ export function JournalView({
       setBusy(false);
     }
   }
+  function navigateToEntry(targetNumber: number) {
+    if (typeof window === "undefined") return;
+    const el = window.document.getElementById(`entry-${targetNumber}`);
+    if (el) {
+      if (el instanceof HTMLDetailsElement) {
+        el.open = true;
+      }
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-emerald-600", "ring-offset-2", "transition-all");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-emerald-600", "ring-offset-2", "transition-all");
+      }, 2500);
+    } else {
+      setMessage(`القيد رقم #${targetNumber} موجود في صفحة أخرى.`);
+    }
+  }
+
   async function action(id: string, action: string) {
     let reversalDate: string | null = null;
     if (action === "reverse") {
+      const targetEntry = entries.data.entries.find((e) => e.id === id);
+      if (targetEntry?.reversedBy) {
+        setError(
+          `هذا القيد تم عكسه مسبقًا بالقيد رقم ${targetEntry.reversedBy.number}`,
+        );
+        setMessage("");
+        return;
+      }
+      if (targetEntry?.reversalOf || targetEntry?.reversedEntry) {
+        setError("هذا القيد هو قيد عكسي ولا يمكن عكسه مرة أخرى");
+        setMessage("");
+        return;
+      }
       reversalDate = window.prompt(
         "تاريخ قيد العكس YYYY-MM-DD",
         new Date().toISOString().slice(0, 10),
@@ -135,12 +230,17 @@ export function JournalView({
     }
     setBusy(true);
     setError("");
+    setMessage("");
     try {
-      await api("/api/journal/" + id, {
+      const res = await api("/api/journal/" + id, {
         action,
         ...(reversalDate ? { date: reversalDate } : {}),
       });
-      setMessage("تم تنفيذ العملية");
+      if (action === "reverse" && res?.entry?.number) {
+        setMessage(`تم إنشاء القيد العكسي رقم ${res.entry.number} بنجاح.`);
+      } else {
+        setMessage("تم تنفيذ العملية بنجاح.");
+      }
       await entries.reload();
     } catch (e) {
       setError((e as Error).message);
@@ -154,9 +254,10 @@ export function JournalView({
   return (
     <Workspace
       title={title}
-      error={error || entries.error || accounts.error}
+      error={error || entries.error || (canCreateOrEdit ? accounts.error : "")}
       message={message}
     >
+      {tools}
       <datalist id="cost-item-labels">
         {[
           ...new Set(
@@ -170,194 +271,358 @@ export function JournalView({
           <option key={label} value={label} />
         ))}
       </datalist>
+      {canCreate && (
       <form
         onSubmit={save}
+        noValidate
         className="rounded-xl border border-border bg-white p-5 space-y-5 print:hidden"
       >
         <h2 className="font-bold text-lg">قيد جديد</h2>
-        <div className="grid gap-4 md:grid-cols-4">
-          <Field label="التاريخ">
-            <input
-              required
-              type="date"
-              className={inputClass}
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-            />
-          </Field>
-          <Field label="البيان">
-            <input
-              required
-              className={inputClass}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-            />
-          </Field>
-          <Field label="نوع المستند">
-            <input
-              className={inputClass}
-              value={document}
-              onChange={(e) => setDocument(e.target.value)}
-            />
-          </Field>
-          <Field label="رقم الإذن / المرجع">
-            <input
-              className={inputClass}
-              value={reference}
-              onChange={(e) => setReference(e.target.value)}
-            />
-          </Field>
-        </div>
-        <label className="flex gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={dimensions}
-            onChange={(e) => setDimensions(e.target.checked)}
-          />
-          إظهار الحساب التحليلي ومراكز التكلفة والموسم والتدفقات
-        </label>
-        <div className="space-y-3">
-          {lines.map((l, i) => (
-            <div
-              key={i}
-              className="rounded-lg border border-border p-3 space-y-3"
-            >
-              <div className="grid gap-3 md:grid-cols-[2fr_1fr_1fr_auto]">
-                <Field label={`الحساب — بند ${i + 1}`}>
-                  <select
-                    required
-                    className={inputClass}
-                    value={l.accountCode}
-                    onChange={(e) => change(i, "accountCode", e.target.value)}
-                  >
-                    <option value="">اختر الحساب</option>
-                    {accounts.data.accounts
-                      .filter((a) => !a.isGroup && a.isActive)
-                      .map((a) => (
-                        <option value={a.code} key={a.code}>
-                          {a.code} — {a.name}
-                        </option>
-                      ))}
-                  </select>
-                </Field>
-                <Field label="مدين">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                    className={inputClass}
-                    value={l.debit}
-                    onChange={(e) => change(i, "debit", e.target.value)}
-                  />
-                </Field>
-                <Field label="دائن">
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    required
-                    className={inputClass}
-                    value={l.credit}
-                    onChange={(e) => change(i, "credit", e.target.value)}
-                  />
-                </Field>
-                <button
-                  type="button"
-                  disabled={lines.length <= 2}
-                  className="self-end p-2 text-red-700 disabled:opacity-30"
-                  onClick={() => setLines(lines.filter((_, j) => i !== j))}
-                >
-                  حذف البند
-                </button>
-              </div>
-              {dimensions && (
-                <div className="grid gap-3 md:grid-cols-3">
-                  <Field label="العميل / المورد / الشريك">
-                    <select
-                      className={inputClass}
-                      value={l.party}
-                      onChange={(e) => change(i, "party", e.target.value)}
-                    >
-                      <option value="">بدون</option>
-                      {[...parties.data.rows, ...employees.data.rows].map(
-                        (p) => (
-                          <option key={p.code} value={p.code}>
-                            {p.name}
-                          </option>
-                        ),
-                      )}
-                    </select>
-                  </Field>
-                  <Field label="مركز التكلفة">
-                    <select
-                      className={inputClass}
-                      value={l.costCenter}
-                      onChange={(e) => change(i, "costCenter", e.target.value)}
-                    >
-                      <option value="">بدون</option>
-                      {centers.data.rows.map((p) => (
-                        <option key={p.code} value={p.code}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-                  {[
-                    ["costType", "توجيه التكاليف"],
-                    ["costItem", "بند التكلفة"],
-                    ["season", "الموسم"],
-                    ["farm", "المزرعة"],
-                    ["pivot", "البيفت"],
-                    ["description", "بيان البند"],
-                  ].map(([key, label]) => (
-                    <Field key={key} label={label}>
-                      <input
-                        list={
-                          key === "costItem" ? "cost-item-labels" : undefined
-                        }
-                        className={inputClass}
-                        value={l[key as keyof Line]}
-                        onChange={(e) =>
-                          change(i, key as keyof Line, e.target.value)
-                        }
-                      />
-                    </Field>
-                  ))}
-                  <Field label="تصنيف التدفق النقدي">
-                    <select
-                      className={inputClass}
-                      value={l.cashFlow}
-                      onChange={(e) => change(i, "cashFlow", e.target.value)}
-                    >
-                      <option value="">بدون</option>
-                      <option value="OPERATING">تشغيلي</option>
-                      <option value="INVESTING">استثماري</option>
-                      <option value="FINANCING">تمويلي</option>
-                    </select>
-                  </Field>
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-        <div className="flex flex-wrap justify-between gap-3">
-          <button
-            type="button"
-            className="rounded-lg border p-2"
-            onClick={() => setLines([...lines, emptyLine()])}
-          >
-            + إضافة بند
-          </button>
-          <div className="tabular-nums text-sm">
-            مدين: {debit.toFixed(2)} — دائن: {credit.toFixed(2)} — الفرق:{" "}
-            {difference.toFixed(2)}
+        <p className="text-sm text-ink-600">
+          كل صف طرف في القيد. اختر الحساب ثم اكتب المبلغ في المدين أو الدائن.
+          الحفظ ينشئ مسودة؛ الترحيل بعد المراجعة هو ما يؤثر في التقارير.
+        </p>
+        {draft.notice && (
+          <p role="status" className="rounded-lg bg-amber-50 p-3 text-sm">
+            {draft.notice}
+          </p>
+        )}
+        <fieldset disabled={busy || !draft.ready} className="min-w-0 space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
+            <Field label="التاريخ">
+              <input
+                required
+                type="date"
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+              />
+            </Field>
+            <Field label="البيان">
+              <input
+                required
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </Field>
+            <Field label="نوع المستند">
+              <input
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
+                value={document}
+                onChange={(e) => setDocument(e.target.value)}
+              />
+            </Field>
+            <Field label="رقم الإذن / المرجع">
+              <input
+                className="w-full rounded-lg border border-border bg-white px-2.5 py-1.5 text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-green-700 h-9"
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+              />
+            </Field>
           </div>
-          <button disabled={busy} className={buttonClass}>
-            {busy ? "جارٍ الحفظ…" : "حفظ مسودة"}
-          </button>
-        </div>
+          {/* Smart Dimensions & Fit Screen Controls */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-green-50/70 border border-green-200/70 text-xs">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="font-bold text-green-900">أبعاد القيد:</span>
+              <label className="flex items-center gap-1.5 cursor-pointer text-ink-800 hover:text-green-900 font-semibold select-none">
+                <input
+                  type="checkbox"
+                  checked={dimensions}
+                  onChange={(e) => setDimensions(e.target.checked)}
+                  className="rounded text-green-700 focus:ring-green-600 w-4 h-4 cursor-pointer"
+                />
+                الحساب التحليلي ومراكز التكلفة
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer text-ink-800 hover:text-green-900 font-medium select-none">
+                <input
+                  type="checkbox"
+                  checked={advancedDimensions}
+                  onChange={(e) => setAdvancedDimensions(e.target.checked)}
+                  className="rounded text-green-700 focus:ring-green-600 w-4 h-4 cursor-pointer"
+                />
+                تفاصيل التكاليف والزراعة (الموسم، المزرعة، البيفت، التدفقات)
+              </label>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setFitScreen(!fitScreen)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all border shadow-sm ${
+                  fitScreen
+                    ? "bg-green-700 text-white border-green-800 ring-2 ring-green-600/30"
+                    : "bg-white text-ink-700 border-border hover:bg-neutral-50"
+                }`}
+                title={
+                  fitScreen
+                    ? "الجدول مضبوط لملء عرض الشاشة بدون شريط تمرير أفقي"
+                    : "التبديل إلى وضع العرض الممتد مع شريط تمرير أفقي"
+                }
+              >
+                <span>{fitScreen ? "⛶ ملاءمة عرض الشاشة (بدون تمرير)" : "↔ عرض ممتد (شريط تمرير)"}</span>
+              </button>
+            </div>
+          </div>
+
+          <EntrySheet
+            fitScreen={fitScreen}
+            compact={fitScreen}
+            label={
+              kind === "OPENING"
+                ? "جدول الأرصدة الافتتاحية"
+                : "جدول قيد اليومية"
+            }
+          >
+            <thead>
+              <tr className={fitScreen ? "text-xs" : ""}>
+                <th scope="col" className={fitScreen ? "w-7 px-1 text-center font-bold" : ""}>م</th>
+                <th scope="col" className={fitScreen ? "min-w-[120px] font-bold" : ""}>رقم الحساب / اسم الحساب</th>
+                {dimensions && (
+                  <>
+                    <th scope="col" className={fitScreen ? "min-w-[90px] font-bold" : ""}>الحساب التحليلي</th>
+                    <th scope="col" className={fitScreen ? "min-w-[85px] font-bold" : ""}>مركز التكلفة</th>
+                  </>
+                )}
+                {advancedDimensions && (
+                  <>
+                    {[
+                      ["costType", "توجيه التكاليف", "min-w-[68px]"],
+                      ["costItem", "بند التكلفة", "min-w-[68px]"],
+                      ["season", "الموسم", "min-w-[58px]"],
+                      ["farm", "المزرعة", "min-w-[58px]"],
+                      ["pivot", "البيفت", "min-w-[50px]"],
+                    ].map(([key, label, w]) => (
+                      <th key={key} scope="col" className={fitScreen ? `${w} font-bold` : ""}>
+                        {label}
+                      </th>
+                    ))}
+                    <th scope="col" className={fitScreen ? "min-w-[68px] font-bold" : ""}>التدفق النقدي</th>
+                  </>
+                )}
+                <th scope="col" className={fitScreen ? "min-w-[85px] font-bold" : ""}>البيان / ملاحظات</th>
+                <th scope="col" className={fitScreen ? "min-w-[62px] text-center font-bold" : ""}>مدين</th>
+                <th scope="col" className={fitScreen ? "min-w-[62px] text-center font-bold" : ""}>دائن</th>
+                <th scope="col" className={fitScreen ? "w-7 px-0.5 text-center font-bold" : ""}>إجراء</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((l, i) => (
+                <tr key={i}>
+                  <td className="computed text-center align-middle font-mono font-medium text-xs">{i + 1}</td>
+                  <td className={fitScreen ? "min-w-[120px]" : "min-w-64"}>
+                    <select
+                      aria-label={`الحساب — بند ${i + 1}`}
+                      aria-invalid={attempted && !!validation.issues[i]}
+                      aria-describedby={
+                        attempted && validation.issues[i]
+                          ? `line-error-${i}`
+                          : undefined
+                      }
+                      required
+                      className={
+                        fitScreen
+                          ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                          : inputClass
+                      }
+                      value={l.accountCode}
+                      onChange={(e) => change(i, "accountCode", e.target.value)}
+                    >
+                      <option value="">اختر الحساب بالاسم أو الكود</option>
+                      {accounts.data.accounts
+                        .filter((a) => !a.isGroup && a.isActive)
+                        .map((a) => (
+                          <option key={a.code} value={a.code}>
+                            {a.name} — {a.code}
+                          </option>
+                        ))}
+                    </select>
+                    {attempted && validation.issues[i] && (
+                      <p
+                        id={`line-error-${i}`}
+                        className="mt-0.5 text-[10px] text-red-700 font-semibold"
+                      >
+                        سطر {i + 1}: {validation.issues[i]}
+                      </p>
+                    )}
+                  </td>
+                  {dimensions && (
+                    <>
+                      <td className={fitScreen ? "min-w-[90px]" : "min-w-48"}>
+                        <select
+                          aria-label={`الحساب التحليلي — بند ${i + 1}`}
+                          className={
+                            fitScreen
+                              ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                              : inputClass
+                          }
+                          value={l.party}
+                          onChange={(e) => change(i, "party", e.target.value)}
+                        >
+                          <option value="">بدون</option>
+                          {[...parties.data.rows, ...employees.data.rows].map(
+                            (p, j) => (
+                              <option key={p.code + j} value={p.code}>
+                                {p.name} — {p.code}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </td>
+                      <td className={fitScreen ? "min-w-[85px]" : "min-w-48"}>
+                        <select
+                          aria-label={`مركز التكلفة — بند ${i + 1}`}
+                          className={
+                            fitScreen
+                              ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                              : inputClass
+                          }
+                          value={l.costCenter}
+                          onChange={(e) =>
+                            change(i, "costCenter", e.target.value)
+                          }
+                        >
+                          <option value="">بدون</option>
+                          {centers.data.rows.map((p) => (
+                            <option key={p.code} value={p.code}>
+                              {p.name}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                    </>
+                  )}
+                  {advancedDimensions && (
+                    <>
+                      {[
+                        ["costType", "توجيه التكاليف", "min-w-[68px]"],
+                        ["costItem", "بند التكلفة", "min-w-[68px]"],
+                        ["season", "الموسم", "min-w-[58px]"],
+                        ["farm", "المزرعة", "min-w-[58px]"],
+                        ["pivot", "البيفت", "min-w-[50px]"],
+                      ].map(([key, label, w]) => (
+                        <td className={fitScreen ? w : "min-w-40"} key={key}>
+                          <input
+                            aria-label={`${label} — بند ${i + 1}`}
+                            list={
+                              key === "costItem"
+                                ? "cost-item-labels"
+                                : undefined
+                            }
+                            className={
+                              fitScreen
+                                ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                                : inputClass
+                            }
+                            value={l[key as keyof Line]}
+                            onChange={(e) =>
+                              change(i, key as keyof Line, e.target.value)
+                            }
+                          />
+                        </td>
+                      ))}
+                      <td className={fitScreen ? "min-w-[68px]" : "min-w-40"}>
+                        <select
+                          aria-label={`تصنيف التدفق النقدي — بند ${i + 1}`}
+                          className={
+                            fitScreen
+                              ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                              : inputClass
+                          }
+                          value={l.cashFlow}
+                          onChange={(e) =>
+                            change(i, "cashFlow", e.target.value)
+                          }
+                        >
+                          <option value="">بدون</option>
+                          <option value="OPERATING">تشغيلي</option>
+                          <option value="INVESTING">استثماري</option>
+                          <option value="FINANCING">تمويلي</option>
+                        </select>
+                      </td>
+                    </>
+                  )}
+                  <td className={fitScreen ? "min-w-[85px]" : "min-w-52"}>
+                    <input
+                      aria-label={`بيان البند ${i + 1}`}
+                      className={
+                        fitScreen
+                          ? "w-full rounded border border-border bg-white px-1.5 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8"
+                          : inputClass
+                      }
+                      value={l.description}
+                      onChange={(e) => change(i, "description", e.target.value)}
+                    />
+                  </td>
+                  {(["debit", "credit"] as const).map((key) => (
+                    <td className={fitScreen ? "min-w-[62px]" : "min-w-36"} key={key}>
+                      <input
+                        aria-label={key === "debit" ? "مدين" : "دائن"}
+                        type="number"
+                        inputMode="decimal"
+                        min="0"
+                        step="0.01"
+                        placeholder=""
+                        className={`[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${
+                          fitScreen
+                            ? "w-full rounded border border-border bg-white px-1 py-1 text-xs text-ink-900 focus:outline-none focus:ring-1 focus:ring-green-700 h-8 text-center font-mono"
+                            : inputClass
+                        }`}
+                        value={l[key] === "0" ? "" : (l[key] ?? "")}
+                        onChange={(e) => change(i, key, e.target.value)}
+                      />
+                    </td>
+                  ))}
+                  <td className={fitScreen ? "w-8 text-center align-middle" : ""}>
+                    <button
+                      type="button"
+                      disabled={lines.length <= 2}
+                      className={
+                        fitScreen
+                          ? "inline-flex items-center justify-center w-7 h-7 rounded text-red-600 hover:bg-red-50 hover:text-red-800 disabled:opacity-20 font-bold text-sm transition-colors"
+                          : "whitespace-nowrap p-2 text-red-700 disabled:opacity-30"
+                      }
+                      title={`حذف البند ${i + 1}`}
+                      aria-label={`حذف البند ${i + 1}`}
+                      onClick={() => setLines(lines.filter((_, j) => i !== j))}
+                    >
+                      {fitScreen ? "✕" : "حذف البند"}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </EntrySheet>
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-border/60">
+            <button
+              type="button"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-border bg-white text-xs font-semibold text-ink-800 hover:bg-neutral-50 shadow-sm transition-all"
+              disabled={lines.length >= 500}
+              onClick={() => setLines([...lines, emptyLine()])}
+            >
+              + إضافة بند
+            </button>
+            <div
+              className={`tabular-nums text-xs px-3 py-1.5 rounded-lg font-mono font-semibold border ${
+                Math.abs(difference) < 0.001
+                  ? "bg-green-50 text-green-800 border-green-200"
+                  : "bg-amber-50 text-amber-900 border-amber-200"
+              }`}
+            >
+              مدين: {debit.toFixed(2)} — دائن: {credit.toFixed(2)} — الفرق:{" "}
+              {difference.toFixed(2)}
+            </div>
+            <button
+              type="submit"
+              disabled={busy || !draft.ready}
+              className={`${buttonClass} px-4 py-1.5 text-xs font-semibold shadow-sm`}
+            >
+              {busy ? "جارٍ الحفظ…" : "حفظ مسودة"}
+            </button>
+          </div>
+        </fieldset>
       </form>
+      )}
       <div className="space-y-4">
         <h2 className="font-bold text-lg">
           القيود المسجلة ({entries.data.total})
@@ -365,19 +630,89 @@ export function JournalView({
         {entries.loading && <p>جارٍ التحميل…</p>}
         {entries.data.entries.map((e) => (
           <details
+            id={`entry-${e.number}`}
             key={e.id}
-            className="rounded-xl border border-border bg-white p-4"
+            className={clsx(
+              "rounded-xl border border-border bg-white p-4 transition-colors",
+              e.reversedBy && "border-amber-200 bg-amber-50/20",
+              e.reversedEntry && "border-blue-200 bg-blue-50/20",
+            )}
           >
-            <summary className="cursor-pointer font-semibold">
-              #{e.number} — {e.date.slice(0, 10)} — {e.description}{" "}
-              <span className="mr-3 text-green-700">
-                {e.status === "POSTED"
-                  ? "مرحل"
-                  : e.status === "VOID"
-                    ? "ملغى"
-                    : "مسودة"}
-              </span>
+            <summary className="cursor-pointer font-semibold list-none flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-ink-900 font-bold">#{e.number}</span>
+                <span className="text-gray-400">—</span>
+                <span className="text-gray-600">{e.date.slice(0, 10)}</span>
+                <span className="text-gray-400">—</span>
+                <span className="text-ink-800">{e.description}</span>
+                <span
+                  className={clsx(
+                    "rounded-md px-2 py-0.5 text-xs font-medium",
+                    e.status === "POSTED"
+                      ? "bg-green-100 text-green-800"
+                      : e.status === "VOID"
+                        ? "bg-gray-100 text-gray-700"
+                        : "bg-amber-100 text-amber-800",
+                  )}
+                >
+                  {e.status === "POSTED"
+                    ? "مرحل"
+                    : e.status === "VOID"
+                      ? "ملغى"
+                      : "مسودة"}
+                </span>
+                {e.reversedBy && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 text-xs font-semibold">
+                    تم عكسه بالقيد #{e.reversedBy.number}
+                  </span>
+                )}
+                {e.reversedEntry && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 text-blue-900 border border-blue-300 px-2.5 py-0.5 text-xs font-semibold">
+                    قيد عكسي للقيد #{e.reversedEntry.number}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-gray-400 select-none">تفاصيل القيد ▾</span>
             </summary>
+
+            {e.reversedBy && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-950">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">⚠️ تم عكس هذا القيد بالقيد رقم {e.reversedBy.number}</span>
+                  <span className="text-xs text-amber-800">(تم تحييد الأثر المالي لهذا القيد بالكامل)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(evt) => {
+                    evt.stopPropagation();
+                    navigateToEntry(e.reversedBy!.number);
+                  }}
+                  className="inline-flex items-center gap-1 font-bold text-amber-900 underline hover:text-amber-950 focus:outline-none"
+                >
+                  الانتقال إلى القيد العكسي #{e.reversedBy.number} ←
+                </button>
+              </div>
+            )}
+
+            {e.reversedEntry && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm text-blue-950">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">ℹ️ قيد عكسي للقيد رقم {e.reversedEntry.number}</span>
+                  <span className="text-xs text-blue-800">(تم إنشاء هذا القيد لعكس وتسوية القيد الأصلي)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(evt) => {
+                    evt.stopPropagation();
+                    navigateToEntry(e.reversedEntry!.number);
+                  }}
+                  className="inline-flex items-center gap-1 font-bold text-blue-900 underline hover:text-blue-950 focus:outline-none"
+                >
+                  الانتقال إلى القيد الأصلي #{e.reversedEntry.number} ←
+                </button>
+              </div>
+            )}
+
             <div className="overflow-x-auto py-4">
               <table className="w-full text-sm">
                 <thead>
@@ -400,35 +735,62 @@ export function JournalView({
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-3 print:hidden">
+            {(e.status === "DRAFT" ? canPost || canVoid : canReverse) && (
+            <div className="flex items-center gap-3 print:hidden">
               {e.status === "DRAFT" && (
                 <>
-                  <button
-                    disabled={busy}
-                    className={buttonClass}
-                    onClick={() => action(e.id, "post")}
-                  >
-                    ترحيل
-                  </button>
-                  <button
-                    disabled={busy}
-                    className="rounded-lg border px-4 py-2"
-                    onClick={() => action(e.id, "void")}
-                  >
-                    إلغاء المسودة
-                  </button>
+                  {canPost && (
+                    <button
+                      disabled={busy}
+                      className={buttonClass}
+                      onClick={() => action(e.id, "post")}
+                    >
+                      ترحيل
+                    </button>
+                  )}
+                  {canVoid && (
+                    <button
+                      disabled={busy}
+                      className="rounded-lg border px-4 py-2"
+                      onClick={() => action(e.id, "void")}
+                    >
+                      إلغاء المسودة
+                    </button>
+                  )}
                 </>
               )}
-              {e.status === "POSTED" && (
-                <button
-                  disabled={busy}
-                  className="rounded-lg border px-4 py-2"
-                  onClick={() => action(e.id, "reverse")}
-                >
-                  إنشاء قيد عكسي
-                </button>
+              {e.status === "POSTED" && canReverse && (
+                e.reversedBy ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-lg border border-amber-300 bg-amber-100/60 px-4 py-2 text-sm font-medium text-amber-900 opacity-80 cursor-not-allowed"
+                    title={`تم عكس هذا القيد مسبقًا بالقيد رقم ${e.reversedBy.number}`}
+                  >
+                    تم عكسه بالقيد #{e.reversedBy.number}
+                  </button>
+                ) : e.reversalOf || e.reversedEntry ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 opacity-80 cursor-not-allowed"
+                    title="هذا قيد عكسي ولا يمكن عكسه مرة أخرى"
+                  >
+                    قيد عكسي (لا يمكن عكسه)
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-700 disabled:opacity-50"
+                    onClick={() => action(e.id, "reverse")}
+                  >
+                    إنشاء قيد عكسي
+                  </button>
+                )
               )}
             </div>
+            )}
           </details>
         ))}
         <div className="flex gap-3">

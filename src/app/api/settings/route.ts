@@ -16,15 +16,19 @@ export async function GET() {
       }),
       users:
         user.role === "admin"
-          ? await prisma.user.findMany({
+          ? await (prisma.user as any).findMany({
               where: { companyId: user.companyId },
               select: {
                 id: true,
                 email: true,
+                username: true,
                 name: true,
                 role: true,
                 isActive: true,
+                permissions: true,
+                createdAt: true,
               },
+              orderBy: { createdAt: "asc" },
             })
           : [],
     });
@@ -129,46 +133,67 @@ export async function POST(request: Request) {
         const input = z
           .object({
             id: z.string().optional(),
-            email: z.string().email(),
+            email: z.string().email().optional().nullable(),
+            username: z.string().min(3).max(50).optional(),
             name: z.string().min(1).max(200),
             role: z.enum(["admin", "accountant", "auditor"]),
             isActive: z.boolean(),
+            permissions: z.array(z.string()).optional(),
             password: z.string().max(256).optional(),
           })
           .parse(raw);
-        if (input.id === user.id && (input.role !== "admin" || !input.isActive))
-          throw new HttpError(400, "لا يمكنك إيقاف حسابك أو إزالة صلاحيتك");
-        if (
-          input.id &&
-          !(await tx.user.findFirst({
+
+        if (input.id) {
+          const activeAdminsCount = await tx.user.count({
+            where: { companyId: user.companyId, role: "admin", isActive: true },
+          });
+          const targetUser = await tx.user.findFirst({
             where: { id: input.id, companyId: user.companyId },
-          }))
-        )
-          throw new HttpError(404, "المستخدم غير موجود");
+          });
+          if (!targetUser) throw new HttpError(404, "المستخدم غير موجود");
+          const isCurrentlyActiveAdmin =
+            targetUser.role === "admin" && targetUser.isActive;
+          const willRemainActiveAdmin =
+            input.role === "admin" && input.isActive;
+          if (isCurrentlyActiveAdmin && !willRemainActiveAdmin && activeAdminsCount <= 1) {
+            throw new HttpError(
+              400,
+              "لا يمكن تعطيل أو إزالة صلاحيات المدير الأخير الفعّال في الشركة",
+            );
+          }
+        }
         if (!input.id && !input.password)
           throw new HttpError(400, "كلمة المرور مطلوبة");
         const passwordHash = input.password
           ? hashPassword(input.password)
           : undefined;
-        const data = {
-          email: input.email.toLowerCase(),
+
+        const data: Record<string, any> = {
           name: input.name,
           role: input.role,
           isActive: input.isActive,
+          ...(input.email ? { email: input.email.toLowerCase() } : {}),
+          ...(input.username ? { username: input.username.toLowerCase() } : {}),
+          ...(input.permissions ? { permissions: input.permissions } : {}),
           ...(passwordHash ? { passwordHash } : {}),
         };
+
         const saved = input.id
-          ? await tx.user.update({ where: { id: input.id }, data })
-          : await tx.user.create({
+          ? await (tx.user as any).update({ where: { id: input.id }, data })
+          : await (tx.user as any).create({
               data: {
                 ...data,
                 companyId: user.companyId,
                 passwordHash: passwordHash!,
               },
             });
-        if (input.id)
+        if (input.id && (passwordHash || !input.isActive))
           await tx.session.deleteMany({ where: { userId: input.id } });
-        await audit(tx, user, "USER_UPDATED", saved.id);
+        await audit(tx, user, "USER_UPDATED", saved.id, {
+          updatedName: saved.name,
+          role: saved.role,
+          isActive: saved.isActive,
+        });
         return { id: saved.id };
       }
       throw new HttpError(400, "عملية غير معروفة");

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import { body, fail, HttpError, ok } from "@/lib/server/http";
 import {
   audit,
@@ -21,7 +21,7 @@ import { D } from "@/lib/accounting/calculations";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
-    const actor = await authorize();
+    const actor = await requirePermission(request, "payroll.view");
     const month = payrollMonth.parse(
       new URL(request.url).searchParams.get("month"),
     );
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const actor = await authorize(request, true),
+    const actor = await requirePermission(request, "payroll.post"),
       raw = await body(request);
     const action = z
       .enum(["movement", "post", "void-movement"])

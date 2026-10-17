@@ -18,12 +18,12 @@ import {
   payrollAmounts,
 } from "../src/lib/accounting/payroll-calculations";
 
-test("final Home has exactly 43 unique destinations and the sidebar exposes the same set", () => {
-  assert.equal(home.length, 43);
-  assert.equal(new Set(home.map((b) => b.cell)).size, 43);
-  assert.equal(new Set(home.map((b) => b.group + "/" + b.page)).size, 43);
-  assert.equal(getAllRouteParams().length, 43);
-  assert.equal(NAV_GROUPS.flatMap((g) => g.items).length, 43);
+test("final Home has exactly 45 unique destinations and the sidebar exposes the same set", () => {
+  assert.equal(home.length, 45);
+  assert.equal(new Set(home.map((b) => b.cell)).size, 45);
+  assert.equal(new Set(home.map((b) => b.group + "/" + b.page)).size, 45);
+  assert.equal(getAllRouteParams().length, 45);
+  assert.equal(NAV_GROUPS.flatMap((g) => g.items).length, 45);
   for (const b of home) {
     assert.ok(getNavItem(b.group, b.page), b.label);
     assert.ok(b.page === "chart-of-accounts" || modules[b.page], b.label);

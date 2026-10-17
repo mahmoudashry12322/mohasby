@@ -12,6 +12,8 @@ import {
   Gear,
   List,
 } from "@phosphor-icons/react";
+import { Download } from "lucide-react";
+import { usePwa } from "@/contexts/PwaContext";
 import { Breadcrumb, BreadcrumbItem } from "./Breadcrumb";
 
 interface TopbarProps {
@@ -32,6 +34,7 @@ export const Topbar: React.FC<TopbarProps> = ({
   const locale = useLocale();
   const t = useTranslations("shell");
 
+  const { isInstalled, installApp } = usePwa();
   const [user, setUser] = useState({ name: "", email: "", role: "" });
   useEffect(() => {
     fetch("/api/auth/me")
@@ -121,6 +124,17 @@ export const Topbar: React.FC<TopbarProps> = ({
           <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 text-[11px] font-medium text-ink-600 bg-white border border-border rounded shadow-2xs">
             <bdi dir="ltr">{t("searchShortcut")}</bdi>
           </kbd>
+        </button>
+
+        {/* Windows / Desktop App Direct Action Button */}
+        <button
+          type="button"
+          onClick={() => installApp()}
+          className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 text-xs font-bold text-white bg-green-700 hover:bg-green-800 rounded-lg shadow-sm transition-all duration-150 active:scale-95 shrink-0"
+          title="تثبيت أو تشغيل تطبيق مُحاسبي على الويندوز"
+        >
+          <Download size={15} className="text-accent-400" />
+          <span>تطبيق الويندوز 💻</span>
         </button>
 
         {/* Language Switch Segmented Button */}
@@ -257,6 +271,20 @@ export const Topbar: React.FC<TopbarProps> = ({
                     <Gear size={16} className="text-ink-600" />
                     <span>{t("userSettings")}</span>
                   </button>
+
+                  {!isInstalled && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsUserMenuOpen(false);
+                        installApp();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3.5 py-2 text-xs font-semibold text-green-900 bg-accent-500/15 hover:bg-accent-500/25 transition-colors text-start"
+                    >
+                      <Download size={16} className="text-accent-600" />
+                      <span>تثبيت التطبيق على جهازك</span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="border-t border-border pt-1">

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import { body, fail, HttpError, ok } from "@/lib/server/http";
 import {
   audit,
@@ -15,7 +15,7 @@ export async function POST(
 ) {
   const resolved = await params;
   try {
-    const actor = await authorize(request, true),
+    const actor = await requirePermission(request, "depreciation.calculate"),
       input = z.object({ date: dateOnly }).parse(await body(request));
     const entry = await locked(actor.companyId, async (tx) => {
       const asset = await tx.register.findFirst({

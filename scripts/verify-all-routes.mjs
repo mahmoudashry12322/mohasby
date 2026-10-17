@@ -102,6 +102,8 @@ const NAV_GROUPS = [
     items: [
       { slug: 'customers', labelKey: 'customers' },
       { slug: 'suppliers', labelKey: 'suppliers' },
+      { slug: 'audit-log', labelKey: 'auditLog' },
+      { slug: 'settings', labelKey: 'settings' },
     ],
   },
 ];

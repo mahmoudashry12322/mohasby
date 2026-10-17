@@ -9,7 +9,7 @@ import {
 import { decimal } from "@/lib/accounting/ledger";
 export async function POST(request: Request) {
   try {
-    await authorize();
+    await authorize(request);
     const input = await body(request);
     try {
       if (input.type === "weigh")

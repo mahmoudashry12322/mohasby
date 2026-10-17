@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import { audit, locked, dateOnly } from "@/lib/accounting/ledger";
 import { reportFilter } from "@/lib/accounting/reports";
 import { equityReport, partnerInput } from "@/lib/accounting/equity";
@@ -7,7 +7,7 @@ import { body, fail, HttpError, ok } from "@/lib/server/http";
 export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
-    const user = await authorize(),
+    const user = await requirePermission(request, "equity.view"),
       { from, to } = reportFilter(new URL(request.url).searchParams);
     return ok(
       await locked(user.companyId, (tx) =>
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 }
 export async function POST(request: Request) {
   try {
-    const user = await authorize(request, true),
+    const user = await requirePermission(request, "equity.distribute"),
       input = z
         .object({
           from: dateOnly,

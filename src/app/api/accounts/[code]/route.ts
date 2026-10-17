@@ -1,10 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import prisma from "@/lib/prisma";
-import { authorize } from "@/lib/auth/server";
+import { requirePermission } from "@/lib/auth/permissions.server";
 import { body, fail, ok } from "@/lib/server/http";
 import { locked } from "@/lib/accounting/ledger";
 import { changeAccount, accountBalances } from "@/lib/accounting/accounts";
-import { z } from "zod";
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +10,7 @@ export async function GET(
 ) {
   const resolved = await params;
   try {
-    const actor = await authorize();
+    const actor = await requirePermission(request, "accounts.view");
     const accounts = await locked(actor.companyId, (tx) =>
       accountBalances(tx, actor.companyId),
     );
@@ -39,7 +37,7 @@ export async function PUT(
 ) {
   const resolved = await params;
   try {
-    const actor = await authorize(request, true);
+    const actor = await requirePermission(request, "accounts.edit");
     return ok({
       account: await changeAccount(actor, resolved.code, await body(request)),
       message: "تم تحديث الحساب",
@@ -48,13 +46,14 @@ export async function PUT(
     return fail(error);
   }
 }
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ code: string }> },
 ) {
   const resolved = await params;
   try {
-    const actor = await authorize(request, true);
+    const actor = await requirePermission(request, "accounts.edit");
     return ok({
       account: await changeAccount(actor, resolved.code, {}, true),
       message: "تم إيقاف الحساب",

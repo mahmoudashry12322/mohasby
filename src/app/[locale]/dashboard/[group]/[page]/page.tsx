@@ -1,11 +1,14 @@
+import { PageGuide } from "@/components/accounting/PageGuide";
 import React from "react";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getNavItem, getAllRouteParams } from "@/lib/nav/nav.config";
 import { modules } from "@/lib/accounting/modules";
 import { ModuleView } from "@/components/accounting/ModuleView";
 import { ChartOfAccountsView } from "@/components/accounting/ChartOfAccountsView";
 import { getTranslations } from "next-intl/server";
 import type { Metadata } from "next";
+import { currentUser } from "@/lib/auth/server";
+import { canAccessPage } from "@/lib/auth/permission-map";
 
 interface PageProps {
   params: Promise<{
@@ -48,9 +51,21 @@ export default async function GenericDashboardPage({ params }: PageProps) {
     notFound();
   }
 
+  const user = await currentUser();
+  if (!user) redirect("/login");
+
+  if (!canAccessPage(user as any, page)) {
+    redirect(`/${locale}/dashboard/forbidden`);
+  }
+
   // Chart of Accounts module
   if (group === "accounting" && page === "chart-of-accounts") {
-    return <ChartOfAccountsView />;
+    return (
+      <>
+        <PageGuide page={page} locale={locale} />
+        <ChartOfAccountsView />
+      </>
+    );
   }
 
   const tItems = await getTranslations({ locale, namespace: "nav.items" });
@@ -64,5 +79,10 @@ export default async function GenericDashboardPage({ params }: PageProps) {
 
   const workflow = modules[page];
   if (!workflow) notFound();
-  return <ModuleView key={page} module={workflow} title={title} />;
+  return (
+    <>
+      <PageGuide page={page} locale={locale} />
+      <ModuleView key={page} module={workflow} title={title} />
+    </>
+  );
 }

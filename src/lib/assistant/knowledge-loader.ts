@@ -76,52 +76,93 @@ export function estimateTokens(text: string): number {
  */
 function getRelevantArticleKeys(route: string, query: string): Set<string> {
   const keys = new Set<string>();
-  const normalizedRoute = route.toLowerCase();
+  const normalizedRoute =
+    route.toLowerCase().split(/[?#]/)[0].split("/").filter(Boolean).at(-1) ||
+    "";
   const normalizedQuery = query.toLowerCase();
 
   // Route matches
-  if (normalizedRoute.includes("journal") || normalizedRoute.includes("opening")) {
+  if (
+    normalizedRoute.includes("journal") ||
+    normalizedRoute.includes("opening")
+  ) {
     keys.add("journal-entries");
     keys.add("chart-of-accounts");
   }
-  if (normalizedRoute.includes("chart") || normalizedRoute.includes("account")) {
+  if (
+    normalizedRoute.includes("chart") ||
+    normalizedRoute.includes("account")
+  ) {
     keys.add("chart-of-accounts");
     keys.add("ledger");
   }
-  if (normalizedRoute.includes("ledger") || normalizedRoute.includes("statement")) {
+  if (
+    normalizedRoute.includes("ledger") ||
+    normalizedRoute.includes("statement")
+  ) {
     keys.add("ledger");
     keys.add("trial-balance");
   }
-  if (normalizedRoute.includes("trial") || normalizedRoute.includes("balance-sheet") || normalizedRoute.includes("income")) {
+  if (
+    normalizedRoute.includes("trial") ||
+    normalizedRoute.includes("balance-sheet") ||
+    normalizedRoute.includes("income")
+  ) {
     keys.add("trial-balance");
     keys.add("financial-statements");
   }
-  if (normalizedRoute.includes("warehouse") || normalizedRoute.includes("stock") || normalizedRoute.includes("cold")) {
+  if (
+    normalizedRoute.includes("warehouse") ||
+    normalizedRoute.includes("stock") ||
+    normalizedRoute.includes("cold")
+  ) {
     keys.add("inventory");
   }
-  if (normalizedRoute.includes("bank") || normalizedRoute.includes("treasury") || normalizedRoute.includes("cheque")) {
+  if (
+    normalizedRoute.includes("bank") ||
+    normalizedRoute.includes("treasury") ||
+    normalizedRoute.includes("cheque")
+  ) {
     keys.add("banks-cash-cheques");
   }
   if (normalizedRoute.includes("cost")) {
     keys.add("cost-centers");
     keys.add("specialized-activities");
   }
-  if (normalizedRoute.includes("farm") || normalizedRoute.includes("manufacturing") || normalizedRoute.includes("import") || normalizedRoute.includes("animal")) {
+  if (
+    normalizedRoute.includes("farm") ||
+    normalizedRoute.includes("manufacturing") ||
+    normalizedRoute.includes("import") ||
+    normalizedRoute.includes("animal")
+  ) {
     keys.add("specialized-activities");
   }
 
+  if (/payroll|payslip|employees/.test(normalizedRoute)) keys.add("payroll");
+  if (/equity|profit-and-loss/.test(normalizedRoute)) keys.add("distribution");
+  if (/مرتب|مرتبات|رواتب|راتب|سلف|موظف/.test(normalizedQuery))
+    keys.add("payroll");
+  if (/توزيع|شريك|شركاء|ملكية/.test(normalizedQuery)) keys.add("distribution");
   // Keyword matches from user query
-  if (/قيد|قيود|مدين|دائن|توازن/.test(normalizedQuery)) keys.add("journal-entries");
-  if (/حساب|شجرة|دليل|أصول|خصوم/.test(normalizedQuery)) keys.add("chart-of-accounts");
+  if (/قيد|قيود|مدين|دائن|توازن/.test(normalizedQuery))
+    keys.add("journal-entries");
+  if (/حساب|شجرة|دليل|أصول|خصوم/.test(normalizedQuery))
+    keys.add("chart-of-accounts");
   if (/أستاذ|كشف حساب/.test(normalizedQuery)) keys.add("ledger");
   if (/ميزان|مراجعة/.test(normalizedQuery)) keys.add("trial-balance");
-  if (/مخزن|مخازن|بضاعة|صنف|تبريد|هالك/.test(normalizedQuery)) keys.add("inventory");
-  if (/بنك|خزينة|شيك|شيكات|تسوية/.test(normalizedQuery)) keys.add("banks-cash-cheques");
+  if (/مخزن|مخازن|بضاعة|صنف|تبريد|هالك/.test(normalizedQuery))
+    keys.add("inventory");
+  if (/بنك|خزينة|شيك|شيكات|تسوية/.test(normalizedQuery))
+    keys.add("banks-cash-cheques");
   if (/مركز تكلفة|مراكز/.test(normalizedQuery)) keys.add("cost-centers");
-  if (/مزرعة|بيفوت|تصنيع|تسمين|وزن|استيراد/.test(normalizedQuery)) keys.add("specialized-activities");
-  if (/أرباح|خسائر|ميزانية|تدفق|قوائم/.test(normalizedQuery)) keys.add("financial-statements");
-  if (/خطأ|مشكلة|عجز|فرق/.test(normalizedQuery)) keys.add("faq-troubleshooting");
-  if (/صلاحية|دور|أدوار|مراجع|محاسب|مدير/.test(normalizedQuery)) keys.add("roles-and-permissions");
+  if (/مزرعة|بيفوت|تصنيع|تسمين|وزن|استيراد/.test(normalizedQuery))
+    keys.add("specialized-activities");
+  if (/أرباح|خسائر|ميزانية|تدفق|قوائم/.test(normalizedQuery))
+    keys.add("financial-statements");
+  if (/خطأ|مشكلة|عجز|فرق/.test(normalizedQuery))
+    keys.add("faq-troubleshooting");
+  if (/صلاحية|دور|أدوار|مراجع|محاسب|مدير/.test(normalizedQuery))
+    keys.add("roles-and-permissions");
 
   return keys;
 }
@@ -150,11 +191,15 @@ export function getKnowledge(options?: {
   const essentialKeys = new Set(["getting-started", "roles-and-permissions"]);
 
   // Sort articles: relevant first (5), then essential (2), then others
-  const prioritized = [...articles].sort((a, b) => {
-    const aPri = (relevantKeys.has(a.key) ? 5 : 0) + (essentialKeys.has(a.key) ? 2 : 0);
-    const bPri = (relevantKeys.has(b.key) ? 5 : 0) + (essentialKeys.has(b.key) ? 2 : 0);
-    return bPri - aPri;
-  });
+  const prioritized = articles
+    .filter((a) => relevantKeys.has(a.key) || essentialKeys.has(a.key))
+    .sort((a, b) => {
+      const aPri =
+        (relevantKeys.has(a.key) ? 5 : 0) + (essentialKeys.has(a.key) ? 2 : 0);
+      const bPri =
+        (relevantKeys.has(b.key) ? 5 : 0) + (essentialKeys.has(b.key) ? 2 : 0);
+      return bPri - aPri;
+    });
 
   const selectedChunks: string[] = [];
   const loadedTopics: string[] = [];
@@ -164,7 +209,7 @@ export function getKnowledge(options?: {
     const section = `\n\n--- [وثيقة: ${article.title}] ---\n${article.content}`;
     const sectionTokens = estimateTokens(section);
 
-    if (currentTokens + sectionTokens > maxTokens && selectedChunks.length > 0) {
+    if (currentTokens + sectionTokens > maxTokens) {
       // Don't exceed budget
       continue;
     }

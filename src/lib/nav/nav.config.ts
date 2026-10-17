@@ -402,7 +402,7 @@ const additions: Record<string, [string, string, string][]> = {
     ["cost-items", "costItems", "دليل التكاليف"],
     ["farms", "farms", "المزارع"],
     ["weigh-ticket", "weighTicket", "حاسبة الوزن والخصومات"],
-    ["settings", "settings", "إعدادات الشركة"],
+    ["settings", "settings", "المستخدمون والصلاحيات"],
     ["audit-log", "auditLog", "سجل المراجعة"],
   ],
 };
@@ -419,7 +419,7 @@ for (const group of ROUTE_GROUPS) {
     (item) => item.slug === "chart-of-accounts" || !!modules[item.slug],
   );
 }
-// Only the 43 workbook links are visible in navigation. Supporting routes remain
+// Only the 45 workbook links are visible in navigation. Supporting routes remain
 // reachable from their owning workflow and user settings, not extra Home tiles.
 export const NAV_GROUPS: NavGroup[] = ROUTE_GROUPS.map((group) => ({
   ...group,

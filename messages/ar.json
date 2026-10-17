@@ -82,7 +82,7 @@
       "costItems": "دليل التكاليف",
       "farms": "المزارع",
       "weighTicket": "حاسبة الوزن والخصومات",
-      "settings": "إعدادات الشركة",
+      "settings": "المستخدمون والصلاحيات",
       "auditLog": "سجل المراجعة",
       "documents": "المبيعات والمشتريات",
       "payslip": "كشف مفردات الراتب"
@@ -150,7 +150,7 @@
       "costItemsDesc": "دليل التكاليف",
       "farmsDesc": "المزارع",
       "weighTicketDesc": "حاسبة الوزن والخصومات",
-      "settingsDesc": "إعدادات الشركة",
+      "settingsDesc": "المستخدمون والصلاحيات وإعدادات المنشأة",
       "auditLogDesc": "سجل المراجعة",
       "documentsDesc": "المستندات المحاسبية",
       "payslipDesc": "كشف مفردات الراتب"
@@ -395,15 +395,17 @@
     "chipBalanced": "متزن ✓",
     "demoBadge": "بيانات تجريبية جاهزة للاختبار",
     "fillDemo": "ملء الحساب التجريبي",
-    "emailLabel": "البريد الإلكتروني",
-    "emailPlaceholder": "demo@mohasby.app",
+    "emailLabel": "اسم المستخدم أو البريد الإلكتروني",
+    "emailPlaceholder": "اسم المستخدم أو البريد الإلكتروني",
+    "identifierLabel": "اسم المستخدم أو البريد الإلكتروني",
+    "identifierPlaceholder": "اسم المستخدم أو البريد الإلكتروني",
     "passwordLabel": "كلمة المرور",
     "passwordPlaceholder": "••••••••••••",
     "rememberMe": "تذكرني",
     "forgotPassword": "نسيت كلمة المرور؟",
     "signInBtn": "سجّل الدخول",
     "signingIn": "جاري التحقق والترحيل...",
-    "errorInvalid": "بيانات الدخول غير صحيحة. راجع البريد وكلمة المرور وحاول مرة أخرى.",
+    "errorInvalid": "بيانات الدخول غير صحيحة. راجع اسم المستخدم أو البريد وكلمة المرور وحاول مرة أخرى.",
     "backHome": "العودة إلى الصفحة الرئيسية"
   },
   "shell": {

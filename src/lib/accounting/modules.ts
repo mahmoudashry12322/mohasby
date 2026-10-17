@@ -29,7 +29,7 @@ export const modules: Record<string, Module> = {
   "journal-entries": { type: "journal" },
   "general-ledger": { type: "report" },
   "subsidiary-ledger": { type: "report" },
-  "account-statement": { type: "report" },
+  "account-statement": { type: "report", view: "statement" },
   "trial-balance": { type: "report", report: "trial-balance" },
   "account-reconciliation": { type: "journal", kind: "ADJUSTMENT" },
   "inventory-adjustments": { type: "stock", kind: "COUNT_GAIN" },
