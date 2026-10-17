@@ -10,6 +10,7 @@ import {
   Workspace,
   DataTable,
 } from "./Workspace";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 
 const movementFields = [
   ["advance", "سلف"],
@@ -41,6 +42,9 @@ const columns = [
   ["net", "صافى الراتب المستحق"],
 ].map(([key, label]) => ({ key, label }));
 export function PayrollView({ title, view }: { title: string; view: string }) {
+  const { can, isAdmin } = usePermissions();
+  const canPost = isAdmin || can("payroll.post");
+
   const [month, setMonth] = useState(new Date().toISOString().slice(0, 7)),
     [employee, setEmployee] = useState(""),
     [date, setDate] = useState(new Date().toISOString().slice(0, 10)),
@@ -62,7 +66,7 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
   );
   const accounts = useLoad<{
     accounts: { code: string; name: string; isGroup: boolean }[];
-  }>("/api/accounts?flat=true", { accounts: [] });
+  }>(canPost ? "/api/accounts?flat=true&lookup=true" : null, { accounts: [] });
   const rows = data.rows.filter((r) => !employee || r.code === employee);
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -118,7 +122,11 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
     }
   }
   return (
-    <Workspace title={title} error={error || loadError} message={message}>
+    <Workspace
+      title={title}
+      error={error || loadError || (canPost ? accounts.error : "")}
+      message={message}
+    >
       <div className="flex flex-wrap gap-4 print:hidden">
         <Field label="الشهر والسنة">
           <input
@@ -143,7 +151,7 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
           </select>
         </Field>
       </div>
-      {view === "journal" && (
+      {view === "journal" && canPost && (
         <form
           onSubmit={save}
           className="rounded-xl border bg-white p-5 space-y-4 print:hidden"
@@ -222,7 +230,7 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
                       ...movementFields.map(([key, label]) => ({ key, label })),
                     ]}
                   />
-                  {!row.entryId && (
+                  {!row.entryId && canPost && (
                     <div className="flex flex-wrap gap-3 print:hidden">
                       {(row.movements || []).map(
                         (movement: Record<string, string>) => (
@@ -252,7 +260,7 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
               <div className="print:hidden">
                 {row.entryId ? (
                   <span role="status">استحقاق المرتب مرحل</span>
-                ) : (
+                ) : canPost ? (
                   <button
                     className={buttonClass}
                     disabled={busy}
@@ -260,7 +268,7 @@ export function PayrollView({ title, view }: { title: string; view: string }) {
                   >
                     ترحيل استحقاق المرتب
                   </button>
-                )}
+                ) : null}
               </div>
             </section>
           ))}

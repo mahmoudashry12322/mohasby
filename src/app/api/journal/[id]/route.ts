@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/permissions.server";
-import { body, fail, ok } from "@/lib/server/http";
+import { body, fail, HttpError, ok } from "@/lib/server/http";
 import { entryAction } from "@/lib/accounting/ledger";
 
 export async function POST(
@@ -25,8 +25,17 @@ export async function POST(
 
     const user = await requirePermission(request, permissionKey);
 
+    const result = await entryAction(user, resolved.id, input.action, input.date);
+
+    if (input.action === "reverse" && (result as any)?.alreadyReversed) {
+      throw new HttpError(
+        409,
+        `هذا القيد تم عكسه مسبقًا بالقيد رقم ${(result as any).number}`,
+      );
+    }
+
     return ok({
-      entry: await entryAction(user, resolved.id, input.action, input.date),
+      entry: result,
     });
   } catch (e) {
     return fail(e);

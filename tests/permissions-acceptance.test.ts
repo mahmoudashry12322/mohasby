@@ -501,6 +501,262 @@ test("Permissions & User Management Acceptance Suite", async (t) => {
     assert.equal(found.entityId, testEntry.id);
   });
 
+  await t.test("13. Comprehensive View-Only Permissions: Clean read, zero false forbidden on supporting data, and strict server-side mutation rejection", async () => {
+    const { NextRequest } = await import("next/server");
+    const { GET: getJournal, POST: postJournal } = await import("../src/app/api/journal/route");
+    const { POST: actionJournal } = await import("../src/app/api/journal/[id]/route");
+    const { GET: getAccounts, POST: postAccount } = await import("../src/app/api/accounts/route");
+    const { PUT: putAccount, DELETE: deleteAccount } = await import("../src/app/api/accounts/[code]/route");
+    const { GET: getStock, POST: postStock } = await import("../src/app/api/stock/route");
+    const { GET: getDocuments, POST: postDocument } = await import("../src/app/api/documents/route");
+    const { GET: getCosts, POST: postCosts } = await import("../src/app/api/costs/[type]/route");
+    const { GET: getDistribution, POST: postDistribution } = await import("../src/app/api/equity/distribution/route");
+    const { GET: getRegisters } = await import("../src/app/api/registers/[kind]/route");
+
+    // Helper to create user & session
+    async function makeUserWithPerms(name: string, username: string, perms: string[]) {
+      const u = await prisma.user.create({
+        data: {
+          companyId: companyA.id,
+          name,
+          username,
+          passwordHash: hashPassword("Pass123456!"),
+          role: "accountant",
+          permissions: perms,
+          isActive: true,
+        },
+      });
+      const token = digest(username + "_" + Date.now()).repeat(2).slice(0, 64);
+      await prisma.session.create({
+        data: {
+          userId: u.id,
+          tokenHash: digest(token),
+          expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+        },
+      });
+      return { user: u, token };
+    }
+
+    // A. User with ONLY journal.view
+    const jView = await makeUserWithPerms("عرض قيود فقط", `jview_${ts}`, ["journal.view"]);
+    const jCookie = `mohasby_session=${jView.token}`;
+
+    const testEntry13 = await prisma.journalEntry.create({
+      data: {
+        companyId: companyA.id,
+        number: 9991,
+        date: new Date(),
+        description: "قيد فحص الصلاحيات",
+        createdBy: adminA.id,
+        requestKey: `test-subtest-13-${ts}`,
+      },
+    });
+
+    // 1. Can view journal entries cleanly
+    const jRes = await getJournal(new NextRequest("http://localhost:3000/api/journal", {
+      headers: { cookie: jCookie },
+    }));
+    assert.equal(jRes.status, 200);
+    const jBody = await jRes.json();
+    assert.equal(jBody.success, true);
+    assert.ok(Array.isArray(jBody.entries));
+
+    // 2. Cannot create journal entry (POST /api/journal -> 403)
+    const jPostRes = await postJournal(new NextRequest("http://localhost:3000/api/journal", {
+      method: "POST",
+      headers: { cookie: jCookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        date: "2026-10-14",
+        document: "RECEIPT",
+        lines: [
+          { accountCode: "101", debit: 100, credit: 0, description: "تجربة" },
+          { accountCode: "102", debit: 0, credit: 100, description: "تجربة" },
+        ],
+      }),
+    }));
+    assert.equal(jPostRes.status, 403);
+
+    // 3. Cannot post, void, or reverse existing journal entry (POST /api/journal/[id] -> 403)
+    const jActionRes = await actionJournal(
+      new NextRequest(`http://localhost:3000/api/journal/${testEntry13.id}`, {
+        method: "POST",
+        headers: { cookie: jCookie, "content-type": "application/json" },
+        body: JSON.stringify({ action: "post" }),
+      }),
+      { params: Promise.resolve({ id: testEntry13.id }) }
+    );
+    assert.equal(jActionRes.status, 403);
+
+    // 4. Cannot access accounts with raw lookup=true since journal.view does not have creation need
+    const jAccRes = await getAccounts(new NextRequest("http://localhost:3000/api/accounts?lookup=true", {
+      headers: { cookie: jCookie },
+    }));
+    assert.equal(jAccRes.status, 403);
+
+    // B. User with ONLY accounts.view
+    const aView = await makeUserWithPerms("عرض حسابات فقط", `aview_${ts}`, ["accounts.view"]);
+    const aCookie = `mohasby_session=${aView.token}`;
+
+    // 1. Can view accounts and balances
+    const aRes = await getAccounts(new NextRequest("http://localhost:3000/api/accounts", {
+      headers: { cookie: aCookie },
+    }));
+    assert.equal(aRes.status, 200);
+    const aBody = await aRes.json();
+    assert.equal(aBody.success, true);
+    assert.ok(Array.isArray(aBody.accounts));
+
+    // 2. Cannot create account (POST /api/accounts -> 403)
+    const aPostRes = await postAccount(new NextRequest("http://localhost:3000/api/accounts", {
+      method: "POST",
+      headers: { cookie: aCookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        code: "9999",
+        name: "حساب غير مصرح",
+        accountClass: "الأصول",
+      }),
+    }));
+    assert.equal(aPostRes.status, 403);
+
+    // 3. Cannot edit or disable account (PUT & DELETE -> 403)
+    const aPutRes = await putAccount(
+      new NextRequest("http://localhost:3000/api/accounts/101", {
+        method: "PUT",
+        headers: { cookie: aCookie, "content-type": "application/json" },
+        body: JSON.stringify({ name: "اسم جديد غير مصرح" }),
+      }),
+      { params: Promise.resolve({ code: "101" }) }
+    );
+    assert.equal(aPutRes.status, 403);
+
+    const aDelRes = await deleteAccount(
+      new NextRequest("http://localhost:3000/api/accounts/101", {
+        method: "DELETE",
+        headers: { cookie: aCookie },
+      }),
+      { params: Promise.resolve({ code: "101" }) }
+    );
+    assert.equal(aDelRes.status, 403);
+
+    // C. User with ONLY stock.view
+    const sView = await makeUserWithPerms("عرض مخازن فقط", `sview_${ts}`, ["stock.view"]);
+    const sCookie = `mohasby_session=${sView.token}`;
+
+    // 1. Can view stock balances
+    const sRes = await getStock(new NextRequest("http://localhost:3000/api/stock", {
+      headers: { cookie: sCookie },
+    }));
+    assert.equal(sRes.status, 200);
+
+    // 2. Can lookup items & warehouses for report filters without 403
+    const sItems = await getRegisters(
+      new NextRequest("http://localhost:3000/api/registers/items?lookup=true", {
+        headers: { cookie: sCookie },
+      }),
+      { params: Promise.resolve({ kind: "items" }) }
+    );
+    assert.equal(sItems.status, 200);
+
+    const sWarehouses = await getRegisters(
+      new NextRequest("http://localhost:3000/api/registers/warehouses?lookup=true", {
+        headers: { cookie: sCookie },
+      }),
+      { params: Promise.resolve({ kind: "warehouses" }) }
+    );
+    assert.equal(sWarehouses.status, 200);
+
+    // 3. Cannot perform stock movement (POST /api/stock -> 403)
+    const sPostRes = await postStock(new NextRequest("http://localhost:3000/api/stock", {
+      method: "POST",
+      headers: { cookie: sCookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        date: "2026-10-14",
+        itemId: "dummy",
+        warehouse: "dummy",
+        kind: "RECEIPT",
+        quantity: 10,
+        unitCost: 5,
+      }),
+    }));
+    assert.equal(sPostRes.status, 403);
+
+    // 4. Cannot access unrelated registers like cost-centers
+    const sCostCenters = await getRegisters(
+      new NextRequest("http://localhost:3000/api/registers/cost-centers", {
+        headers: { cookie: sCookie },
+      }),
+      { params: Promise.resolve({ kind: "cost-centers" }) }
+    );
+    assert.equal(sCostCenters.status, 403);
+
+    // D. User with ONLY documents.view
+    const dView = await makeUserWithPerms("عرض مستندات فقط", `dview_${ts}`, ["documents.view"]);
+    const dCookie = `mohasby_session=${dView.token}`;
+
+    const dRes = await getDocuments(new NextRequest("http://localhost:3000/api/documents", {
+      headers: { cookie: dCookie },
+    }));
+    assert.equal(dRes.status, 200);
+
+    const dPostRes = await postDocument(new NextRequest("http://localhost:3000/api/documents", {
+      method: "POST",
+      headers: { cookie: dCookie, "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "PURCHASE",
+        date: "2026-10-14",
+        itemId: "dummy",
+        warehouse: "dummy",
+        party: "dummy",
+        accountCode: "101",
+        quantity: 10,
+        unitPrice: 5,
+        description: "مشتريات",
+        requestKey: `req-${Date.now()}`,
+      }),
+    }));
+    assert.equal(dPostRes.status, 403);
+
+    // E. User with ONLY costs.view
+    const cView = await makeUserWithPerms("عرض تكاليف فقط", `cview_${ts}`, ["costs.view"]);
+    const cCookie = `mohasby_session=${cView.token}`;
+
+    // Can lookup cost centers for cost report dropdown
+    const cCenters = await getRegisters(
+      new NextRequest("http://localhost:3000/api/registers/cost-centers?lookup=true", {
+        headers: { cookie: cCookie },
+      }),
+      { params: Promise.resolve({ kind: "cost-centers" }) }
+    );
+    assert.equal(cCenters.status, 200);
+
+    // Cannot manage costs (POST -> 403)
+    const cPostRes = await postCosts(
+      new NextRequest("http://localhost:3000/api/costs/import", {
+        method: "POST",
+        headers: { cookie: cCookie, "content-type": "application/json" },
+        body: JSON.stringify({ center: "C1", inputs: {} }),
+      }),
+      { params: Promise.resolve({ type: "import" }) }
+    );
+    assert.equal(cPostRes.status, 403);
+
+    // F. User with ONLY equity.view
+    const eqView = await makeUserWithPerms("عرض ملكية فقط", `eqview_${ts}`, ["equity.view"]);
+    const eqCookie = `mohasby_session=${eqView.token}`;
+
+    const eqRes = await getDistribution(new NextRequest("http://localhost:3000/api/equity/distribution", {
+      headers: { cookie: eqCookie },
+    }));
+    assert.equal(eqRes.status, 200);
+
+    const eqPostRes = await postDistribution(new NextRequest("http://localhost:3000/api/equity/distribution", {
+      method: "POST",
+      headers: { cookie: eqCookie, "content-type": "application/json" },
+      body: JSON.stringify({ from: "2026-01-01", to: "2026-10-14", first: "", second: "", version: 0, inputs: {} }),
+    }));
+    assert.equal(eqPostRes.status, 403);
+  });
+
   // Teardown: Clean up test companies and their cascaded relations
   await prisma.auditLog.deleteMany({
     where: { companyId: { in: [companyA.id, companyB.id] } },

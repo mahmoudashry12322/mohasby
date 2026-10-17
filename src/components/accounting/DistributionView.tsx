@@ -10,7 +10,13 @@ import {
   Workspace,
 } from "./Workspace";
 import { RegisterView } from "./RegisterView";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
+
 export function DistributionView() {
+  const { can, isAdmin } = usePermissions();
+  const canDistribute = isAdmin || can("equity.distribute");
+  const canManagePartners = isAdmin || can("partners.manage") || can("partners.view");
+
   const [from, setFrom] = useState(new Date().getFullYear() + "-01-01"),
     [to, setTo] = useState(new Date().toISOString().slice(0, 10)),
     [inputs, setInputs] = useState<Record<string, string>>({}),
@@ -80,23 +86,79 @@ export function DistributionView() {
       error={error || r.error}
       message={message}
     >
-      <details
-        className="rounded-xl border bg-white p-4 print:hidden"
-        onToggle={(e) => {
-          if (!e.currentTarget.open) void r.reload();
-        }}
-      >
-        <summary className="cursor-pointer font-semibold">
-          إدارة الشركاء
-        </summary>
-        <RegisterView kind="parties" partyType="PARTNER" title="الشركاء" />
-      </details>
-      <form
-        id="distribution-inputs"
-        onSubmit={save}
-        className="space-y-4 rounded-xl border bg-white p-5 print:hidden"
-      >
-        <div className="grid gap-4 md:grid-cols-4">
+      {canManagePartners && (
+        <details
+          className="rounded-xl border bg-white p-4 print:hidden"
+          onToggle={(e) => {
+            if (!e.currentTarget.open) void r.reload();
+          }}
+        >
+          <summary className="cursor-pointer font-semibold">
+            إدارة الشركاء
+          </summary>
+          <RegisterView kind="parties" partyType="PARTNER" title="الشركاء" />
+        </details>
+      )}
+      {canDistribute ? (
+        <form
+          id="distribution-inputs"
+          onSubmit={save}
+          className="space-y-4 rounded-xl border bg-white p-5 print:hidden"
+        >
+          <div className="grid gap-4 md:grid-cols-4">
+            <Field label="من تاريخ">
+              <input
+                type="date"
+                required
+                className={inputClass}
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+              />
+            </Field>
+            <Field label="حتى تاريخ">
+              <input
+                type="date"
+                required
+                className={inputClass}
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+              />
+            </Field>
+            {[
+              [first, setFirst, "الشريك الأول"],
+              [second, setSecond, "الشريك الثاني"],
+            ].map(([v, set, label]) => (
+              <Field key={String(label)} label={String(label)}>
+                <select
+                  required
+                  className={inputClass}
+                  value={String(v)}
+                  onChange={(e) => (set as (v: string) => void)(e.target.value)}
+                >
+                  <option value="">اختر</option>
+                  {r.data.partners.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            ))}
+          </div>
+          <p className="text-sm">
+            التسوية لشريكين بالمناصفة كما في النموذج. أدخل التمويل والمسحوبات وحصص
+            الربح بإشارتها المحاسبية؛ النتائج تحليلية ولا ترحّل قيدًا تلقائيًا.
+          </p>
+          <p className="text-sm">
+            أدخل التمويل والمسحوبات وحصص الربح في الخلايا البيضاء داخل قائمة
+            التوزيع أدناه، ثم احفظ لإعادة الحساب.
+          </p>
+          <button className={buttonClass} disabled={busy}>
+            حفظ وحساب التوزيع
+          </button>
+        </form>
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 rounded-xl border bg-white p-5 print:hidden">
           <Field label="من تاريخ">
             <input
               type="date"
@@ -115,39 +177,8 @@ export function DistributionView() {
               onChange={(e) => setTo(e.target.value)}
             />
           </Field>
-          {[
-            [first, setFirst, "الشريك الأول"],
-            [second, setSecond, "الشريك الثاني"],
-          ].map(([v, set, label]) => (
-            <Field key={String(label)} label={String(label)}>
-              <select
-                required
-                className={inputClass}
-                value={String(v)}
-                onChange={(e) => (set as (v: string) => void)(e.target.value)}
-              >
-                <option value="">اختر</option>
-                {r.data.partners.map((p) => (
-                  <option key={p.code} value={p.code}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-          ))}
         </div>
-        <p className="text-sm">
-          التسوية لشريكين بالمناصفة كما في النموذج. أدخل التمويل والمسحوبات وحصص
-          الربح بإشارتها المحاسبية؛ النتائج تحليلية ولا ترحّل قيدًا تلقائيًا.
-        </p>
-        <p className="text-sm">
-          أدخل التمويل والمسحوبات وحصص الربح في الخلايا البيضاء داخل قائمة
-          التوزيع أدناه، ثم احفظ لإعادة الحساب.
-        </p>
-        <button className={buttonClass} disabled={busy}>
-          حفظ وحساب التوزيع
-        </button>
-      </form>
+      )}
       <button
         className={buttonClass + " print:hidden"}
         onClick={() => window.print()}
@@ -173,7 +204,7 @@ export function DistributionView() {
                   const cell = col + row;
                   return (
                     <td key={cell} className="p-3" data-cell={cell}>
-                      {(template.inputs as Record<string, string>)[cell] ? (
+                      {(template.inputs as Record<string, string>)[cell] && canDistribute ? (
                         <input
                           disabled={busy || r.loading}
                           form="distribution-inputs"

@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
 
     const act = actor as any;
     const hasViewPerm = can(act, "accounts.view");
+    const hasAccountListsView = can(act, "account_lists.view");
     const isLookup = searchParams.get("lookup") === "true";
     const hasLookupNeed =
       can(act, "journal.create") ||
@@ -67,9 +68,15 @@ export async function GET(request: NextRequest) {
       can(act, "stock.movement") ||
       can(act, "assets.manage") ||
       can(act, "payroll.post") ||
-      can(act, "banks.manage");
+      can(act, "banks.manage") ||
+      can(act, "customers.manage") ||
+      can(act, "suppliers.manage") ||
+      can(act, "partners.manage") ||
+      can(act, "items.manage") ||
+      can(act, "warehouses.manage") ||
+      can(act, "cost_centers.manage");
 
-    if (!hasViewPerm && !isLookup && !hasLookupNeed) {
+    if (!hasViewPerm && !hasAccountListsView && !(isLookup && hasLookupNeed)) {
       throw new HttpError(403, "ليس لديك صلاحية: دليل الحسابات — عرض");
     }
 

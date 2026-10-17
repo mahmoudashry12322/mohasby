@@ -12,6 +12,8 @@ import {
   useLoad,
   Workspace,
 } from "./Workspace";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
+import clsx from "clsx";
 
 type Line = {
   accountCode: string;
@@ -53,6 +55,9 @@ type Entry = {
   date: string;
   description: string;
   status: string;
+  reversalOf?: string | null;
+  reversedBy?: { id: string; number: number } | null;
+  reversedEntry?: { id: string; number: number } | null;
   lines: (Line & { account: { name: string } })[];
 };
 export function JournalView({
@@ -64,19 +69,28 @@ export function JournalView({
   kind?: string;
   tools?: React.ReactNode;
 }) {
-  const accounts = useLoad<{ accounts: Account[] }>("/api/accounts?flat=true", {
-    accounts: [],
-  });
+  const { can, isAdmin } = usePermissions();
+  const canCreate = isAdmin || can("journal.create");
+  const canEdit = isAdmin || can("journal.edit");
+  const canPost = isAdmin || can("journal.post");
+  const canVoid = isAdmin || can("journal.void");
+  const canReverse = isAdmin || can("journal.reverse");
+  const canCreateOrEdit = canCreate || canEdit;
+
+  const accounts = useLoad<{ accounts: Account[] }>(
+    canCreateOrEdit ? "/api/accounts?flat=true&lookup=true" : null,
+    { accounts: [] },
+  );
   const parties = useLoad<{ rows: { code: string; name: string }[] }>(
-    "/api/registers/parties",
+    canCreateOrEdit ? "/api/registers/parties?lookup=true" : null,
     { rows: [] },
   );
   const centers = useLoad<{ rows: { code: string; name: string }[] }>(
-    "/api/registers/cost-centers",
+    canCreateOrEdit ? "/api/registers/cost-centers?lookup=true" : null,
     { rows: [] },
   );
   const employees = useLoad<{ rows: { code: string; name: string }[] }>(
-    "/api/registers/employees",
+    canCreateOrEdit ? "/api/registers/employees?lookup=true" : null,
     { rows: [] },
   );
   const [page, setPage] = useState(1);
@@ -175,9 +189,39 @@ export function JournalView({
       setBusy(false);
     }
   }
+  function navigateToEntry(targetNumber: number) {
+    if (typeof window === "undefined") return;
+    const el = window.document.getElementById(`entry-${targetNumber}`);
+    if (el) {
+      if (el instanceof HTMLDetailsElement) {
+        el.open = true;
+      }
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-emerald-600", "ring-offset-2", "transition-all");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-emerald-600", "ring-offset-2", "transition-all");
+      }, 2500);
+    } else {
+      setMessage(`القيد رقم #${targetNumber} موجود في صفحة أخرى.`);
+    }
+  }
+
   async function action(id: string, action: string) {
     let reversalDate: string | null = null;
     if (action === "reverse") {
+      const targetEntry = entries.data.entries.find((e) => e.id === id);
+      if (targetEntry?.reversedBy) {
+        setError(
+          `هذا القيد تم عكسه مسبقًا بالقيد رقم ${targetEntry.reversedBy.number}`,
+        );
+        setMessage("");
+        return;
+      }
+      if (targetEntry?.reversalOf || targetEntry?.reversedEntry) {
+        setError("هذا القيد هو قيد عكسي ولا يمكن عكسه مرة أخرى");
+        setMessage("");
+        return;
+      }
       reversalDate = window.prompt(
         "تاريخ قيد العكس YYYY-MM-DD",
         new Date().toISOString().slice(0, 10),
@@ -186,12 +230,17 @@ export function JournalView({
     }
     setBusy(true);
     setError("");
+    setMessage("");
     try {
-      await api("/api/journal/" + id, {
+      const res = await api("/api/journal/" + id, {
         action,
         ...(reversalDate ? { date: reversalDate } : {}),
       });
-      setMessage("تم تنفيذ العملية");
+      if (action === "reverse" && res?.entry?.number) {
+        setMessage(`تم إنشاء القيد العكسي رقم ${res.entry.number} بنجاح.`);
+      } else {
+        setMessage("تم تنفيذ العملية بنجاح.");
+      }
       await entries.reload();
     } catch (e) {
       setError((e as Error).message);
@@ -205,7 +254,7 @@ export function JournalView({
   return (
     <Workspace
       title={title}
-      error={error || entries.error || accounts.error}
+      error={error || entries.error || (canCreateOrEdit ? accounts.error : "")}
       message={message}
     >
       {tools}
@@ -222,6 +271,7 @@ export function JournalView({
           <option key={label} value={label} />
         ))}
       </datalist>
+      {canCreate && (
       <form
         onSubmit={save}
         noValidate
@@ -572,6 +622,7 @@ export function JournalView({
           </div>
         </fieldset>
       </form>
+      )}
       <div className="space-y-4">
         <h2 className="font-bold text-lg">
           القيود المسجلة ({entries.data.total})
@@ -579,19 +630,89 @@ export function JournalView({
         {entries.loading && <p>جارٍ التحميل…</p>}
         {entries.data.entries.map((e) => (
           <details
+            id={`entry-${e.number}`}
             key={e.id}
-            className="rounded-xl border border-border bg-white p-4"
+            className={clsx(
+              "rounded-xl border border-border bg-white p-4 transition-colors",
+              e.reversedBy && "border-amber-200 bg-amber-50/20",
+              e.reversedEntry && "border-blue-200 bg-blue-50/20",
+            )}
           >
-            <summary className="cursor-pointer font-semibold">
-              #{e.number} — {e.date.slice(0, 10)} — {e.description}{" "}
-              <span className="mr-3 text-green-700">
-                {e.status === "POSTED"
-                  ? "مرحل"
-                  : e.status === "VOID"
-                    ? "ملغى"
-                    : "مسودة"}
-              </span>
+            <summary className="cursor-pointer font-semibold list-none flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-ink-900 font-bold">#{e.number}</span>
+                <span className="text-gray-400">—</span>
+                <span className="text-gray-600">{e.date.slice(0, 10)}</span>
+                <span className="text-gray-400">—</span>
+                <span className="text-ink-800">{e.description}</span>
+                <span
+                  className={clsx(
+                    "rounded-md px-2 py-0.5 text-xs font-medium",
+                    e.status === "POSTED"
+                      ? "bg-green-100 text-green-800"
+                      : e.status === "VOID"
+                        ? "bg-gray-100 text-gray-700"
+                        : "bg-amber-100 text-amber-800",
+                  )}
+                >
+                  {e.status === "POSTED"
+                    ? "مرحل"
+                    : e.status === "VOID"
+                      ? "ملغى"
+                      : "مسودة"}
+                </span>
+                {e.reversedBy && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-amber-100 text-amber-900 border border-amber-300 px-2.5 py-0.5 text-xs font-semibold">
+                    تم عكسه بالقيد #{e.reversedBy.number}
+                  </span>
+                )}
+                {e.reversedEntry && (
+                  <span className="inline-flex items-center gap-1 rounded-md bg-blue-100 text-blue-900 border border-blue-300 px-2.5 py-0.5 text-xs font-semibold">
+                    قيد عكسي للقيد #{e.reversedEntry.number}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-gray-400 select-none">تفاصيل القيد ▾</span>
             </summary>
+
+            {e.reversedBy && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-950">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">⚠️ تم عكس هذا القيد بالقيد رقم {e.reversedBy.number}</span>
+                  <span className="text-xs text-amber-800">(تم تحييد الأثر المالي لهذا القيد بالكامل)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(evt) => {
+                    evt.stopPropagation();
+                    navigateToEntry(e.reversedBy!.number);
+                  }}
+                  className="inline-flex items-center gap-1 font-bold text-amber-900 underline hover:text-amber-950 focus:outline-none"
+                >
+                  الانتقال إلى القيد العكسي #{e.reversedBy.number} ←
+                </button>
+              </div>
+            )}
+
+            {e.reversedEntry && (
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm text-blue-950">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold">ℹ️ قيد عكسي للقيد رقم {e.reversedEntry.number}</span>
+                  <span className="text-xs text-blue-800">(تم إنشاء هذا القيد لعكس وتسوية القيد الأصلي)</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(evt) => {
+                    evt.stopPropagation();
+                    navigateToEntry(e.reversedEntry!.number);
+                  }}
+                  className="inline-flex items-center gap-1 font-bold text-blue-900 underline hover:text-blue-950 focus:outline-none"
+                >
+                  الانتقال إلى القيد الأصلي #{e.reversedEntry.number} ←
+                </button>
+              </div>
+            )}
+
             <div className="overflow-x-auto py-4">
               <table className="w-full text-sm">
                 <thead>
@@ -614,35 +735,62 @@ export function JournalView({
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-3 print:hidden">
+            {(e.status === "DRAFT" ? canPost || canVoid : canReverse) && (
+            <div className="flex items-center gap-3 print:hidden">
               {e.status === "DRAFT" && (
                 <>
-                  <button
-                    disabled={busy}
-                    className={buttonClass}
-                    onClick={() => action(e.id, "post")}
-                  >
-                    ترحيل
-                  </button>
-                  <button
-                    disabled={busy}
-                    className="rounded-lg border px-4 py-2"
-                    onClick={() => action(e.id, "void")}
-                  >
-                    إلغاء المسودة
-                  </button>
+                  {canPost && (
+                    <button
+                      disabled={busy}
+                      className={buttonClass}
+                      onClick={() => action(e.id, "post")}
+                    >
+                      ترحيل
+                    </button>
+                  )}
+                  {canVoid && (
+                    <button
+                      disabled={busy}
+                      className="rounded-lg border px-4 py-2"
+                      onClick={() => action(e.id, "void")}
+                    >
+                      إلغاء المسودة
+                    </button>
+                  )}
                 </>
               )}
-              {e.status === "POSTED" && (
-                <button
-                  disabled={busy}
-                  className="rounded-lg border px-4 py-2"
-                  onClick={() => action(e.id, "reverse")}
-                >
-                  إنشاء قيد عكسي
-                </button>
+              {e.status === "POSTED" && canReverse && (
+                e.reversedBy ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-lg border border-amber-300 bg-amber-100/60 px-4 py-2 text-sm font-medium text-amber-900 opacity-80 cursor-not-allowed"
+                    title={`تم عكس هذا القيد مسبقًا بالقيد رقم ${e.reversedBy.number}`}
+                  >
+                    تم عكسه بالقيد #{e.reversedBy.number}
+                  </button>
+                ) : e.reversalOf || e.reversedEntry ? (
+                  <button
+                    type="button"
+                    disabled
+                    className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-800 opacity-80 cursor-not-allowed"
+                    title="هذا قيد عكسي ولا يمكن عكسه مرة أخرى"
+                  >
+                    قيد عكسي (لا يمكن عكسه)
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="rounded-lg border border-border px-4 py-2 text-sm font-semibold hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-700 disabled:opacity-50"
+                    onClick={() => action(e.id, "reverse")}
+                  >
+                    إنشاء قيد عكسي
+                  </button>
+                )
               )}
             </div>
+            )}
           </details>
         ))}
         <div className="flex gap-3">

@@ -221,9 +221,9 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const user = await requirePermission(undefined, "documents.view");
+    const user = await requirePermission(request, "documents.view");
     const rows = await prisma.stockMovement.findMany({
       where: {
         companyId: user.companyId,

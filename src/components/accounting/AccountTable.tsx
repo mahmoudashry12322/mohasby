@@ -7,12 +7,16 @@ import { AccountNode } from '@/app/api/accounts/route';
 
 interface AccountTableProps {
   accounts: AccountNode[];
+  canCreate?: boolean;
+  canEdit?: boolean;
   onAddChild: (parentCode: string) => void;
   onEdit: (account: AccountNode) => void;
 }
 
 export const AccountTable: React.FC<AccountTableProps> = ({
   accounts,
+  canCreate = true,
+  canEdit = true,
   onAddChild,
   onEdit,
 }) => {
@@ -74,7 +78,9 @@ export const AccountTable: React.FC<AccountTableProps> = ({
             <th className="py-3 px-4 text-start">{t('accountType')}</th>
             <th className="py-3 px-4 text-start">{t('balance')}</th>
             <th className="py-3 px-4 text-start">{t('status')}</th>
-            <th className="py-3 px-4 text-center">{t('actions')}</th>
+            {(canCreate || canEdit) && (
+              <th className="py-3 px-4 text-center">{t('actions')}</th>
+            )}
           </tr>
         </thead>
         <tbody className="divide-y divide-border/60">
@@ -164,28 +170,32 @@ export const AccountTable: React.FC<AccountTableProps> = ({
               </td>
 
               {/* Actions */}
-              <td className="py-3 px-4 text-center">
-                <div className="inline-flex items-center gap-1">
-                  {acc.isGroup && (
-                    <button
-                      type="button"
-                      onClick={() => onAddChild(acc.code)}
-                      title={t('addChild')}
-                      className="w-7 h-7 rounded flex items-center justify-center text-green-700 hover:bg-green-700/10 transition-colors"
-                    >
-                      <Plus size={14} weight="bold" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => onEdit(acc)}
-                    title={t('edit')}
-                    className="w-7 h-7 rounded flex items-center justify-center text-ink-600 hover:bg-canvas transition-colors"
-                  >
-                    <PencilSimple size={14} />
-                  </button>
-                </div>
-              </td>
+              {(canCreate || canEdit) && (
+                <td className="py-3 px-4 text-center">
+                  <div className="inline-flex items-center gap-1">
+                    {canCreate && acc.isGroup && (
+                      <button
+                        type="button"
+                        onClick={() => onAddChild(acc.code)}
+                        title={t('addChild')}
+                        className="w-7 h-7 rounded flex items-center justify-center text-green-700 hover:bg-green-700/10 transition-colors"
+                      >
+                        <Plus size={14} weight="bold" />
+                      </button>
+                    )}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => onEdit(acc)}
+                        title={t('edit')}
+                        className="w-7 h-7 rounded flex items-center justify-center text-ink-600 hover:bg-canvas transition-colors"
+                      >
+                        <PencilSimple size={14} />
+                      </button>
+                    )}
+                  </div>
+                </td>
+              )}
             </tr>
           ))}
         </tbody>

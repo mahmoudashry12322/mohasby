@@ -16,6 +16,7 @@ import {
   CalendarBlank,
   TrendUp,
 } from "@phosphor-icons/react";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 
 type Period = {
   id: string;
@@ -26,6 +27,9 @@ type Period = {
 };
 
 export function SettingsView() {
+  const { can, isAdmin } = usePermissions();
+  const canManage = isAdmin || can("settings.manage");
+
   const locale = useLocale();
   const isAr = locale === "ar";
 
@@ -39,7 +43,9 @@ export function SettingsView() {
     users: ManagedUser[];
   }>("/api/settings", { company: { name: "" }, periods: [], users: [] });
 
-  const [activeTab, setActiveTab] = useState<"users" | "company" | "periods" | "cashFlow">("users");
+  const [activeTab, setActiveTab] = useState<"users" | "company" | "periods" | "cashFlow">(
+    isAdmin ? "users" : "company",
+  );
   const [error, setError] = useState(""),
     [message, setMessage] = useState(""),
     [busy, setBusy] = useState(false);
@@ -96,12 +102,16 @@ export function SettingsView() {
   }
 
   const tabs = [
-    {
-      id: "users" as const,
-      label: isAr ? "المستخدمون والصلاحيات" : "Users & Permissions",
-      icon: Users,
-      badge: data.users ? data.users.length : undefined,
-    },
+    ...(isAdmin
+      ? [
+          {
+            id: "users" as const,
+            label: isAr ? "المستخدمون والصلاحيات" : "Users & Permissions",
+            icon: Users,
+            badge: data.users ? data.users.length : undefined,
+          },
+        ]
+      : []),
     {
       id: "company" as const,
       label: isAr ? "بيانات الشركة" : "Company Profile",
@@ -166,7 +176,7 @@ export function SettingsView() {
       </div>
 
       {/* Tab 1: Users and Custom Permissions (Active Default) */}
-      {activeTab === "users" && (
+      {isAdmin && activeTab === "users" && (
         <div id="users" className="pt-1">
           <UserManagementView users={data.users || []} onRefresh={reload} />
         </div>
@@ -198,45 +208,50 @@ export function SettingsView() {
                     data.company[name as keyof typeof data.company] || "",
                   )}
                   required={name === "name"}
+                  disabled={!canManage}
                   className={inputClass}
                 />
               </Field>
             ))}
           </div>
-          <button disabled={busy} className={buttonClass}>
-            {isAr ? "حفظ بيانات الشركة" : "Save Company Info"}
-          </button>
+          {canManage && (
+            <button disabled={busy} className={buttonClass}>
+              {isAr ? "حفظ بيانات الشركة" : "Save Company Info"}
+            </button>
+          )}
         </form>
       )}
 
       {/* Tab 3: Fiscal Periods */}
       {activeTab === "periods" && (
         <div className="space-y-6 max-w-4xl">
-          <form
-            onSubmit={(e) => submit(e, "period")}
-            className="rounded-xl border bg-white p-5 space-y-4"
-          >
-            <div className="flex items-center gap-2 border-b border-border pb-3">
-              <CalendarBlank size={18} className="text-green-700" />
-              <h2 className="font-bold text-sm text-ink-900">
-                {isAr ? "إضافة فترة مالية جديدة" : "New Fiscal Period"}
-              </h2>
-            </div>
-            <div className="grid gap-3 md:grid-cols-3">
-              <Field label={isAr ? "اسم الفترة" : "Period Name"}>
-                <input name="name" required className={inputClass} placeholder="2026" />
-              </Field>
-              <Field label={isAr ? "من" : "From"}>
-                <input name="start" type="date" required className={inputClass} />
-              </Field>
-              <Field label={isAr ? "إلى" : "To"}>
-                <input name="end" type="date" required className={inputClass} />
-              </Field>
-            </div>
-            <button disabled={busy} className={buttonClass}>
-              {isAr ? "إضافة فترة" : "Add Period"}
-            </button>
-          </form>
+          {canManage && (
+            <form
+              onSubmit={(e) => submit(e, "period")}
+              className="rounded-xl border bg-white p-5 space-y-4"
+            >
+              <div className="flex items-center gap-2 border-b border-border pb-3">
+                <CalendarBlank size={18} className="text-green-700" />
+                <h2 className="font-bold text-sm text-ink-900">
+                  {isAr ? "إضافة فترة مالية جديدة" : "New Fiscal Period"}
+                </h2>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <Field label={isAr ? "اسم الفترة" : "Period Name"}>
+                  <input name="name" required className={inputClass} placeholder="2026" />
+                </Field>
+                <Field label={isAr ? "من" : "From"}>
+                  <input name="start" type="date" required className={inputClass} />
+                </Field>
+                <Field label={isAr ? "إلى" : "To"}>
+                  <input name="end" type="date" required className={inputClass} />
+                </Field>
+              </div>
+              <button disabled={busy} className={buttonClass}>
+                {isAr ? "إضافة فترة" : "Add Period"}
+              </button>
+            </form>
+          )}
 
           <div className="rounded-xl border bg-white p-5 space-y-3">
             <h2 className="font-bold text-sm text-ink-900">
@@ -260,15 +275,17 @@ export function SettingsView() {
                       {p.isClosed ? (isAr ? "مقفلة" : "Closed") : (isAr ? "مفتوحة" : "Open")}
                     </span>
                   </span>
-                  <button
-                    disabled={busy}
-                    className={buttonClass}
-                    onClick={() =>
-                      act({ action: p.isClosed ? "reopen" : "close", id: p.id })
-                    }
-                  >
-                    {p.isClosed ? (isAr ? "إعادة فتح" : "Reopen") : (isAr ? "إقفال" : "Close")}
-                  </button>
+                  {canManage && (
+                    <button
+                      disabled={busy}
+                      className={buttonClass}
+                      onClick={() =>
+                        act({ action: p.isClosed ? "reopen" : "close", id: p.id })
+                      }
+                    >
+                      {p.isClosed ? (isAr ? "إعادة فتح" : "Reopen") : (isAr ? "إقفال" : "Close")}
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -290,10 +307,10 @@ export function SettingsView() {
           </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Field label={isAr ? "كود الحساب التفصيلي" : "Account Code"}>
-              <input required name="accountCode" className={inputClass} placeholder="101" />
+              <input required disabled={!canManage} name="accountCode" className={inputClass} placeholder="101" />
             </Field>
             <Field label={isAr ? "التصنيف" : "Classification"}>
-              <select name="cashFlow" className={inputClass}>
+              <select name="cashFlow" disabled={!canManage} className={inputClass}>
                 {[
                   ["CASH", isAr ? "نقدية وبنوك" : "Cash & Banks"],
                   ["OPERATING_ASSET", isAr ? "أصل ضمن رأس المال العامل" : "Operating Asset"],
@@ -310,9 +327,11 @@ export function SettingsView() {
               </select>
             </Field>
           </div>
-          <button className={buttonClass}>
-            {isAr ? "حفظ التصنيف" : "Save Mapping"}
-          </button>
+          {canManage && (
+            <button className={buttonClass}>
+              {isAr ? "حفظ التصنيف" : "Save Mapping"}
+            </button>
+          )}
         </form>
       )}
     </Workspace>

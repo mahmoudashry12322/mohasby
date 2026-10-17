@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/Badge';
 
 interface AccountTreeProps {
   accounts: AccountNode[];
+  canCreate?: boolean;
+  canEdit?: boolean;
   onAddChild: (parentCode: string) => void;
   onEdit: (account: AccountNode) => void;
   expandedKeys: Set<string>;
@@ -28,6 +30,8 @@ interface AccountTreeProps {
 interface TreeNodeProps {
   node: AccountNode;
   level: number;
+  canCreate?: boolean;
+  canEdit?: boolean;
   onAddChild: (parentCode: string) => void;
   onEdit: (account: AccountNode) => void;
   expandedKeys: Set<string>;
@@ -37,6 +41,8 @@ interface TreeNodeProps {
 const TreeNode: React.FC<TreeNodeProps> = ({
   node,
   level,
+  canCreate = true,
+  canEdit = true,
   onAddChild,
   onEdit,
   expandedKeys,
@@ -168,27 +174,31 @@ const TreeNode: React.FC<TreeNodeProps> = ({
           </span>
 
           {/* Hover Actions Bar */}
-          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
-            {node.isGroup && (
-              <button
-                type="button"
-                onClick={() => onAddChild(node.code)}
-                title={t('addChild')}
-                className="w-7 h-7 rounded-md flex items-center justify-center text-green-700 bg-green-700/10 hover:bg-green-700 hover:text-white transition-all shadow-xs"
-              >
-                <Plus size={14} weight="bold" />
-              </button>
-            )}
+          {(canCreate || canEdit) && (
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+              {canCreate && node.isGroup && (
+                <button
+                  type="button"
+                  onClick={() => onAddChild(node.code)}
+                  title={t('addChild')}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-green-700 bg-green-700/10 hover:bg-green-700 hover:text-white transition-all shadow-xs"
+                >
+                  <Plus size={14} weight="bold" />
+                </button>
+              )}
 
-            <button
-              type="button"
-              onClick={() => onEdit(node)}
-              title={t('edit')}
-              className="w-7 h-7 rounded-md flex items-center justify-center text-ink-600 bg-canvas hover:bg-ink-900 hover:text-white transition-all shadow-xs"
-            >
-              <PencilSimple size={14} />
-            </button>
-          </div>
+              {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(node)}
+                  title={t('edit')}
+                  className="w-7 h-7 rounded-md flex items-center justify-center text-ink-600 bg-canvas hover:bg-ink-900 hover:text-white transition-all shadow-xs"
+                >
+                  <PencilSimple size={14} />
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -204,6 +214,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
               key={child.code}
               node={child}
               level={level + 1}
+              canCreate={canCreate}
+              canEdit={canEdit}
               onAddChild={onAddChild}
               onEdit={onEdit}
               expandedKeys={expandedKeys}
@@ -218,6 +230,8 @@ const TreeNode: React.FC<TreeNodeProps> = ({
 
 export const AccountTree: React.FC<AccountTreeProps> = ({
   accounts,
+  canCreate = true,
+  canEdit = true,
   onAddChild,
   onEdit,
   expandedKeys,
@@ -240,6 +254,8 @@ export const AccountTree: React.FC<AccountTreeProps> = ({
           key={rootNode.code}
           node={rootNode}
           level={1}
+          canCreate={canCreate}
+          canEdit={canEdit}
           onAddChild={onAddChild}
           onEdit={onEdit}
           expandedKeys={expandedKeys}

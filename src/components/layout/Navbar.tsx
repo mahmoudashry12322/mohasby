@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useTranslations, useLocale } from 'next-intl';
 import { Logo } from '@/components/brand/Logo';
-import { LogIn, Menu, X, Sparkles } from 'lucide-react';
+import { LogIn, Menu, X, Sparkles, Download, Smartphone } from 'lucide-react';
+import { usePwa } from '@/contexts/PwaContext';
 
 interface NavbarProps {
   onOpenDemo?: () => void;
@@ -14,6 +15,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
   const t = useTranslations('nav');
   const locale = useLocale();
   const isAr = locale === 'ar';
+  const { isInstalled, installApp } = usePwa();
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -39,7 +41,8 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-40 transition-all duration-500 ${
+        style={{ top: 'var(--pwa-banner-height, 0px)' }}
+        className={`fixed left-0 right-0 z-40 transition-all duration-300 ${
           isScrolled
             ? 'bg-white/95 backdrop-blur-md border-b border-border py-3 shadow-[0_4px_20px_rgba(7,28,24,0.06)]'
             : 'bg-white/90 backdrop-blur-sm border-b border-border/50 py-4'
@@ -69,6 +72,18 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
           {/* Action Buttons */}
           <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
             
+            {/* Install PWA Button on Desktop if not installed */}
+            {!isInstalled && (
+              <button
+                onClick={() => installApp()}
+                className="hidden lg:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-accent-500/40 bg-accent-500/10 text-green-900 text-xs font-bold hover:bg-accent-500/20 transition-all active:scale-95"
+                title="تثبيت التطبيق على جهازك"
+              >
+                <Download className="w-3.5 h-3.5 text-accent-600" />
+                <span>تحميل التطبيق</span>
+              </button>
+            )}
+
             {/* Login Link */}
             <Link
               href={`/${locale}/login`}
@@ -101,7 +116,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
 
       {/* Mobile Drawer */}
       {isMobileOpen && (
-        <div className="fixed inset-0 z-30 bg-white/98 backdrop-blur-xl pt-24 px-6 pb-8 flex flex-col justify-between xl:hidden animate-fade-in shadow-2xl border-b border-border">
+        <div
+          style={{ top: 'var(--pwa-banner-height, 0px)' }}
+          className="fixed inset-0 z-30 bg-white/98 backdrop-blur-xl pt-24 px-6 pb-8 flex flex-col justify-between xl:hidden animate-fade-in shadow-2xl border-b border-border"
+        >
           <div className="space-y-4">
             {navLinks.map((link) => (
               <a
@@ -116,6 +134,19 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenDemo }) => {
           </div>
 
           <div className="space-y-3 pt-6 border-t border-border">
+            {!isInstalled && (
+              <button
+                onClick={() => {
+                  setIsMobileOpen(false);
+                  installApp();
+                }}
+                className="w-full flex items-center justify-center gap-2 py-3 rounded-lg bg-accent-500/15 border border-accent-500/40 text-green-900 text-sm font-bold hover:bg-accent-500/25 transition-all"
+              >
+                <Smartphone className="w-4 h-4 text-accent-600" />
+                <span>تثبيت تطبيق مُحاسبي على جهازك</span>
+              </button>
+            )}
+
             <Link
               href={`/${locale}/login`}
               onClick={() => setIsMobileOpen(false)}

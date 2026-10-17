@@ -11,6 +11,7 @@ import {
   useLoad,
   Workspace,
 } from "./Workspace";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 type Row = {
   id: string;
   code: string;
@@ -18,18 +19,31 @@ type Row = {
   data: Record<string, string>;
 };
 export function DocumentView() {
+  const { can, isAdmin } = usePermissions();
+  const canCreate = isAdmin || can("documents.create");
+  const canPost = isAdmin || can("documents.post");
+  const canCreateOrPost = canCreate || canPost;
+
   const history = useLoad<{ rows: Record<string, unknown>[] }>(
     "/api/documents",
     { rows: [] },
   );
-  const items = useLoad<{ rows: Row[] }>("/api/registers/items", { rows: [] }),
-    warehouses = useLoad<{ rows: Row[] }>("/api/registers/warehouses", {
-      rows: [],
-    }),
-    parties = useLoad<{ rows: Row[] }>("/api/registers/parties", { rows: [] }),
-    centers = useLoad<{ rows: Row[] }>("/api/registers/cost-centers", {
-      rows: [],
-    });
+  const items = useLoad<{ rows: Row[] }>(
+    canCreateOrPost ? "/api/registers/items?lookup=true" : null,
+    { rows: [] },
+  ),
+    warehouses = useLoad<{ rows: Row[] }>(
+      canCreateOrPost ? "/api/registers/warehouses?lookup=true" : null,
+      { rows: [] },
+    ),
+    parties = useLoad<{ rows: Row[] }>(
+      canCreateOrPost ? "/api/registers/parties?lookup=true" : null,
+      { rows: [] },
+    ),
+    centers = useLoad<{ rows: Row[] }>(
+      canCreateOrPost ? "/api/registers/cost-centers?lookup=true" : null,
+      { rows: [] },
+    );
   const accounts = useLoad<{
     accounts: {
       code: string;
@@ -37,7 +51,7 @@ export function DocumentView() {
       isGroup: boolean;
       isActive: boolean;
     }[];
-  }>("/api/accounts?flat=true", { accounts: [] });
+  }>(canCreateOrPost ? "/api/accounts?flat=true&lookup=true" : null, { accounts: [] });
   const [form, setForm] = useState<Record<string, string>>({
       type: "PURCHASE",
       date: new Date().toISOString().slice(0, 10),
@@ -123,7 +137,7 @@ export function DocumentView() {
   return (
     <Workspace
       title="المشتريات والمبيعات والمرتجعات"
-      error={error || items.error}
+      error={error || history.error || (canCreateOrPost ? items.error : "")}
       message={message}
     >
       <datalist id="document-cost-items">
@@ -139,6 +153,7 @@ export function DocumentView() {
           <option key={label} value={label} />
         ))}
       </datalist>
+      {canCreateOrPost && (
       <form
         onSubmit={save}
         className="rounded-xl border bg-white p-5 space-y-5"
@@ -319,6 +334,7 @@ export function DocumentView() {
           {busy ? "جارٍ الترحيل…" : "حفظ وترحيل المستند"}
         </button>
       </form>
+      )}
       <h2 className="font-bold">آخر 100 مستند</h2>
       <DataTable
         rows={history.data.rows}

@@ -17,6 +17,8 @@ import {
   useLoad,
   Workspace,
 } from "./Workspace";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
+import { getRegisterPermissions } from "@/lib/auth/permission-map";
 type Row = {
   id: string;
   code: string;
@@ -34,6 +36,12 @@ export function RegisterView({
   title: string;
   partyType?: string;
 }) {
+  const { can, isAdmin } = usePermissions();
+  const regPerms = getRegisterPermissions(kind, partyType);
+  const canManage = isAdmin || can(regPerms.manage);
+  const canDepreciate = isAdmin || can("depreciation.calculate");
+  const canBalances = isAdmin || can("reports.outstanding_balances");
+
   const {
     data,
     error: loadError,
@@ -42,7 +50,7 @@ export function RegisterView({
   const locale = useLocale();
   const balances = useLoad<{
     rows: { code: string; debit: string; credit: string; balance: string }[];
-  }>(kind === "parties" ? "/api/reports/parties" : null, { rows: [] });
+  }>(kind === "parties" && canBalances ? "/api/reports/parties" : null, { rows: [] });
   const accounts = useLoad<{
     accounts: {
       code: string;
@@ -50,7 +58,7 @@ export function RegisterView({
       isGroup: boolean;
       isActive: boolean;
     }[];
-  }>("/api/accounts?flat=true", { accounts: [] });
+  }>(canManage ? "/api/accounts?flat=true&lookup=true" : null, { accounts: [] });
   const optionNames: Record<string, string> = {
     CUSTOMER: "عميل",
     SUPPLIER: "مورد",
@@ -183,9 +191,10 @@ export function RegisterView({
   return (
     <Workspace
       title={title}
-      error={error || loadError || balances.error}
+      error={error || loadError || (canBalances ? balances.error : "") || (canManage ? accounts.error : "")}
       message={message}
     >
+      {canManage && (
       <form
         onSubmit={save}
         className="rounded-xl border border-border bg-white p-5 space-y-4 print:hidden"
@@ -247,6 +256,7 @@ export function RegisterView({
           )}
         </div>
       </form>
+      )}
       <input
         aria-label="بحث"
         className={inputClass}
@@ -369,20 +379,22 @@ export function RegisterView({
                   ])}
                   <td>{r.isActive ? "فعال" : "موقوف"}</td>
                   <td className="whitespace-nowrap">
-                    <button
-                      className="p-2 text-green-800 underline"
-                      onClick={() => {
-                        setCode(r.code);
-                        setName(r.name);
-                        setFields({ ...blank(), ...r.data });
-                        setVersion(r.version);
-                        setActive(r.isActive);
-                        setMessage("");
-                        window.scrollTo({ top: 0, behavior: "smooth" });
-                      }}
-                    >
-                      تعديل
-                    </button>
+                    {canManage && (
+                      <button
+                        className="p-2 text-green-800 underline"
+                        onClick={() => {
+                          setCode(r.code);
+                          setName(r.name);
+                          setFields({ ...blank(), ...r.data });
+                          setVersion(r.version);
+                          setActive(r.isActive);
+                          setMessage("");
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                      >
+                        تعديل
+                      </button>
+                    )}
                     {kind === "parties" && r.data.accountCode && (
                       <Link
                         className="p-2 text-green-800 underline"
@@ -391,7 +403,7 @@ export function RegisterView({
                         كشف حساب
                       </Link>
                     )}
-                    {kind === "assets" && (
+                    {kind === "assets" && canDepreciate && (
                       <button
                         disabled={busy}
                         className="p-2 text-green-800 underline"

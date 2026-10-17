@@ -3,6 +3,8 @@
 import React, { useState, useMemo } from "react";
 import { useLoad, Workspace } from "./Workspace";
 import { useLocale } from "next-intl";
+import Link from "next/link";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 import {
   MagnifyingGlass,
   Clock,
@@ -15,6 +17,9 @@ import {
   FileText,
   Tag,
   ArrowsLeftRight,
+  Package,
+  Info,
+  ArrowSquareOut,
 } from "@phosphor-icons/react";
 
 const ACTION_LABELS: Record<string, { ar: string; en: string }> = {
@@ -87,6 +92,25 @@ interface AuditLogItem {
   entityId: string;
   entryNumber?: number | null;
   entryDescription?: string | null;
+  stockDetails?: {
+    isHistoricalEnriched: boolean;
+    isDataUnavailable: boolean;
+    kind?: string;
+    reference?: string;
+    date?: string;
+    itemId?: string;
+    itemCode?: string;
+    itemName?: string;
+    warehouse?: string;
+    warehouseName?: string;
+    quantity?: string;
+    unit?: string;
+    movementId?: string;
+    entryId?: string | null;
+    method?: string;
+    valuationMethod?: string;
+    hasImmediateEntry?: boolean;
+  } | null;
   detail: Record<string, any>;
 }
 
@@ -99,6 +123,41 @@ function cleanDetailDisplay(detail: Record<string, any>) {
 }
 
 function renderSummary(row: AuditLogItem, isAr: boolean): string {
+  if (row.action === "STOCK_POSTED" || row.action === "STOCK_MOVED") {
+    const sd = row.stockDetails;
+    if (sd) {
+      if (sd.isDataUnavailable) {
+        return isAr
+          ? "بيانات الحركة الأصلية لم تعد متاحة"
+          : "Original movement data no longer available";
+      }
+      const kindLabel =
+        {
+          OPENING: isAr ? "افتتاحي" : "Opening",
+          RECEIPT: isAr ? "إضافة" : "Receipt",
+          ISSUE: isAr ? "صرف" : "Issue",
+          WASTE: isAr ? "هالك" : "Waste",
+          RETURN_IN: isAr ? "مردود وارد" : "Return In",
+          RETURN_OUT: isAr ? "مردود صادر" : "Return Out",
+          COUNT_GAIN: isAr ? "زيادة جرد" : "Count Gain",
+          COUNT_LOSS: isAr ? "عجز جرد" : "Count Loss",
+        }[sd.kind || ""] || sd.kind || "";
+
+      const refPart = sd.reference
+        ? isAr
+          ? ` (إذن: ${sd.reference})`
+          : ` (Ref: ${sd.reference})`
+        : "";
+      const prefix = sd.isHistoricalEnriched
+        ? isAr
+          ? "[مسترجع] "
+          : "[Retrieved] "
+        : "";
+
+      return `${prefix}${kindLabel}: ${sd.quantity || "—"} ${sd.unit || ""} — ${sd.itemName || sd.itemCode || "صنف"} [${sd.warehouseName || sd.warehouse || "مخزن"}]${refPart}`;
+    }
+  }
+
   const d = cleanDetailDisplay(row.detail || {});
   const parts: string[] = [];
 
@@ -151,6 +210,7 @@ function renderSummary(row: AuditLogItem, isAr: boolean): string {
 export function AuditView() {
   const locale = useLocale();
   const isAr = locale === "ar";
+  const { can, isAdmin } = usePermissions();
 
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -341,7 +401,26 @@ export function AuditView() {
                       </span>
                     </td>
                     <td className="p-3 text-ink-700">
-                      {row.entryNumber ? (
+                      {row.stockDetails && !row.stockDetails.isDataUnavailable ? (
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-green-800 font-mono text-xs">
+                            {row.stockDetails.reference
+                              ? (isAr ? `إذن #${row.stockDetails.reference}` : `Ref #${row.stockDetails.reference}`)
+                              : (isAr ? "حركة مخزن" : "Stock Movement")}
+                          </span>
+                          <span
+                            className="text-[11px] text-ink-500 truncate max-w-[220px]"
+                            title={`${row.stockDetails.itemName} (${row.stockDetails.itemCode})`}
+                          >
+                            {row.stockDetails.itemName} ({row.stockDetails.itemCode})
+                          </span>
+                          {row.entryNumber ? (
+                            <span className="text-[10px] text-blue-700 font-mono">
+                              {isAr ? `قيد #${row.entryNumber}` : `Entry #${row.entryNumber}`}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : row.entryNumber ? (
                         <div className="flex flex-col">
                           <span className="font-semibold text-green-800 font-mono text-xs">
                             {isAr ? `قيد #${row.entryNumber}` : `Entry #${row.entryNumber}`}
@@ -462,8 +541,180 @@ export function AuditView() {
                 <span className="font-mono text-[11px]">{selectedDetail.userId}</span>
               </div>
 
-              {/* Journal Entry details if present */}
-              {selectedDetail.entryNumber && (
+              {/* Stock Movement Details Card if present */}
+              {selectedDetail.stockDetails && (
+                <div className="bg-canvas p-3.5 rounded-xl border border-border space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="font-bold text-ink-900 flex items-center gap-1.5">
+                      <Package className="w-4 h-4 text-green-700" />
+                      <span>{isAr ? "بيانات حركة المخزون:" : "Stock Movement Data:"}</span>
+                    </div>
+                    {selectedDetail.stockDetails.isDataUnavailable ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-800 border border-red-200">
+                        {isAr ? "البيانات الأصلية لم تعد متاحة" : "Data Not Available"}
+                      </span>
+                    ) : selectedDetail.stockDetails.isHistoricalEnriched ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-800 border border-blue-200">
+                        {isAr ? "بيانات مسترجعة من الحركة الأصلية" : "Retrieved From Movement"}
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-green-100 text-green-800 border border-green-200">
+                        {isAr ? "بيانات مسجلة وقت الحركة" : "Execution Snapshot"}
+                      </span>
+                    )}
+                  </div>
+
+                  {!selectedDetail.stockDetails.isDataUnavailable ? (
+                    <div className="grid grid-cols-2 gap-2 text-ink-700 pt-1 text-[11px]">
+                      <div>
+                        <span className="text-ink-400">{isAr ? "نوع الحركة: " : "Movement Kind: "}</span>
+                        <span className="font-semibold text-ink-900">
+                          {{
+                            OPENING: isAr ? "افتتاحي" : "Opening",
+                            RECEIPT: isAr ? "إضافة" : "Receipt",
+                            ISSUE: isAr ? "صرف" : "Issue",
+                            WASTE: isAr ? "هالك" : "Waste",
+                            RETURN_IN: isAr ? "مردود وارد" : "Return In",
+                            RETURN_OUT: isAr ? "مردود صادر" : "Return Out",
+                            COUNT_GAIN: isAr ? "زيادة جرد" : "Count Gain",
+                            COUNT_LOSS: isAr ? "عجز جرد" : "Count Loss",
+                          }[selectedDetail.stockDetails.kind || ""] || selectedDetail.stockDetails.kind}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-ink-400">{isAr ? "رقم الإذن: " : "Ref #: "}</span>
+                        <span className="font-mono font-bold text-green-800">
+                          {selectedDetail.stockDetails.reference || "—"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-ink-400">{isAr ? "تاريخ المستند: " : "Doc Date: "}</span>
+                        <span className="font-mono">{selectedDetail.stockDetails.date || "—"}</span>
+                      </div>
+                      <div>
+                        <span className="text-ink-400">{isAr ? "الكمية: " : "Quantity: "}</span>
+                        <span className="font-bold text-ink-900 font-mono">
+                          {selectedDetail.stockDetails.quantity} {selectedDetail.stockDetails.unit}
+                        </span>
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-ink-400">{isAr ? "الصنف: " : "Item: "}</span>
+                        <span className="font-semibold text-ink-900">
+                          {selectedDetail.stockDetails.itemName}
+                        </span>
+                        {selectedDetail.stockDetails.itemCode && (
+                          <span className="text-ink-500 font-mono text-[10px] mx-1">
+                            ({selectedDetail.stockDetails.itemCode})
+                          </span>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-ink-400">{isAr ? "المخزن: " : "Warehouse: "}</span>
+                        <span className="font-medium text-ink-900">
+                          {selectedDetail.stockDetails.warehouseName}
+                        </span>
+                        {selectedDetail.stockDetails.warehouse && (
+                          <span className="text-ink-500 font-mono text-[10px] mx-1">
+                            ({selectedDetail.stockDetails.warehouse})
+                          </span>
+                        )}
+                      </div>
+                      <div className="col-span-2">
+                        <span className="text-ink-400">{isAr ? "طريقة التقييم: " : "Valuation: "}</span>
+                        <span className="font-semibold text-ink-800">
+                          {isAr ? "متوسط تكلفة الفترة" : "Periodic weighted average"}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-2 text-xs text-ink-500 bg-canvas rounded">
+                      {isAr
+                        ? "سجل الحركة التاريخي لم يعد متاحاً في قاعدة بيانات المنشأة."
+                        : "Historical stock movement record is no longer available in the company database."}
+                    </div>
+                  )}
+
+                  {/* Accounting entry / periodic issue note */}
+                  <div className="pt-2 border-t border-border">
+                    {selectedDetail.entryNumber ? (
+                      <div className="flex items-center justify-between bg-green-50/80 p-2.5 rounded-lg text-[11px]">
+                        <div>
+                          <span className="font-bold text-green-900">
+                            {isAr ? `قيد محاسبي رقم #${selectedDetail.entryNumber}` : `Journal Entry #${selectedDetail.entryNumber}`}
+                          </span>
+                          {selectedDetail.entryDescription && (
+                            <span className="text-green-700 block text-[10px] truncate max-w-xs">
+                              {selectedDetail.entryDescription}
+                            </span>
+                          )}
+                        </div>
+                        <Link
+                          href={
+                            isAr
+                              ? `/dashboard/accounting/journal-entries?search=${selectedDetail.entryNumber}`
+                              : `/en/dashboard/accounting/journal-entries?search=${selectedDetail.entryNumber}`
+                          }
+                          className="flex items-center gap-1 px-2.5 py-1 rounded bg-green-700 text-white hover:bg-green-800 text-[11px] font-semibold transition-colors"
+                        >
+                          <span>{isAr ? "عرض القيد" : "View Entry"}</span>
+                          <ArrowSquareOut className="w-3.5 h-3.5" />
+                        </Link>
+                      </div>
+                    ) : selectedDetail.stockDetails?.kind === "ISSUE" ? (
+                      <div className="bg-amber-50/90 border border-amber-200/80 p-2.5 rounded-lg text-[11px] text-amber-900 flex items-start gap-2">
+                        <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold">
+                            {isAr
+                              ? "لا يوجد قيد تكلفة فوري لهذه الحركة؛ تُحدد التكلفة عند إقفال المخزون"
+                              : "No immediate cost journal entry for this movement; cost is determined upon periodic inventory closing."}
+                          </p>
+                          <p className="text-[10px] text-amber-800 mt-0.5">
+                            {isAr
+                              ? "يعتمد النظام تقييم المخزون الدوري بمتوسط الفترة؛ يتم إنشاء قيود التكلفة آلياً عند تنفيذ إقفال المخزون الدوري."
+                              : "The system uses periodic weighted average inventory valuation; cost entries are generated automatically during periodic inventory closing."}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-ink-500 italic">
+                        {isAr
+                          ? "لا يوجد قيد محاسبي مرتبط بهذه الحركة"
+                          : "No financial entry associated with this movement"}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Legitimate link to warehouse journal */}
+                  {(isAdmin || can("stock.view")) && selectedDetail.stockDetails?.itemId && (
+                    <div className="pt-1 flex justify-end">
+                      <Link
+                        href={
+                          isAr
+                            ? `/dashboard/warehouses/warehouse-journal?itemId=${encodeURIComponent(
+                                selectedDetail.stockDetails.itemId || "",
+                              )}&warehouse=${encodeURIComponent(
+                                selectedDetail.stockDetails.warehouse || "",
+                              )}`
+                            : `/en/dashboard/warehouses/warehouse-journal?itemId=${encodeURIComponent(
+                                selectedDetail.stockDetails.itemId || "",
+                              )}&warehouse=${encodeURIComponent(
+                                selectedDetail.stockDetails.warehouse || "",
+                              )}`
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-green-50 hover:bg-green-100 text-green-800 border border-green-200 text-[11px] font-semibold transition-colors"
+                      >
+                        <Package className="w-3.5 h-3.5" />
+                        <span>{isAr ? "الانتقال إلى يومية المخزن" : "Open in Warehouse Journal"}</span>
+                        <ArrowSquareOut className="w-3.5 h-3.5" />
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Journal Entry details if present and not a stock movement */}
+              {selectedDetail.entryNumber && !selectedDetail.stockDetails && (
                 <div className="flex justify-between py-1.5 border-b border-dashed bg-green-50/60 px-2 rounded">
                   <span className="text-ink-600 font-semibold">{isAr ? "رقم وبيان القيد:" : "Entry # & Desc:"}</span>
                   <span className="font-bold text-green-800">

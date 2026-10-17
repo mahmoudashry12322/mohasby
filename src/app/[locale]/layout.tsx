@@ -3,6 +3,10 @@ import { NextIntlClientProvider } from "next-intl";
 import { getMessages } from "next-intl/server";
 import { Noto_Kufi_Arabic, Cairo, Familjen_Grotesk } from "next/font/google";
 import "../globals.css";
+import { PwaProvider } from "@/contexts/PwaContext";
+import { PwaInstallBanner } from "@/components/pwa/PwaInstallBanner";
+import { PwaIosModal } from "@/components/pwa/PwaIosModal";
+import { PwaSuccessToast } from "@/components/pwa/PwaSuccessToast";
 
 const notoKufi = Noto_Kufi_Arabic({
   subsets: ["arabic"],
@@ -75,13 +79,23 @@ export const metadata: Metadata = {
       "قيود اليومية والمخازن والثلاجات ومراكز التكلفة والبنوك، في دفتر يمنع الخطأ بدل أن يخفيه.",
     images: ["/og-image.png"],
   },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "مُحاسبي",
+  },
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
       { url: "/favicon.png", type: "image/png" },
+      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
     shortcut: "/favicon.ico",
-    apple: "/favicon.png",
+    apple: [
+      { url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
   },
   robots: {
     index: true,
@@ -112,7 +126,7 @@ export default async function RootLayout({
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     name: "مُحاسبي",
-    operatingSystem: "Cloud / Web Browser",
+    operatingSystem: "Cloud / Web Browser / Windows / Mac / Android / iOS",
     applicationCategory: "BusinessApplication",
     description:
       "برنامج محاسبة سحابي عربي للشركات التجارية والتبريد والتخزين والتصنيع والزراعة في مصر.",
@@ -136,6 +150,12 @@ export default async function RootLayout({
       className={`${notoKufi.variable} ${cairo.variable} ${familjen.variable}`}
     >
       <head>
+        <meta name="theme-color" content="#1F4E42" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta name="apple-mobile-web-app-title" content="مُحاسبي" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -143,7 +163,17 @@ export default async function RootLayout({
       </head>
       <body className="min-h-screen bg-canvas text-ink-900 antialiased selection:bg-accent-500/30 selection:text-green-950">
         <NextIntlClientProvider messages={messages} locale={locale}>
-          {children}
+          <PwaProvider>
+            <PwaInstallBanner />
+            <div
+              style={{ paddingTop: 'var(--pwa-banner-height, 0px)' }}
+              className="min-h-screen flex flex-col transition-all duration-300"
+            >
+              {children}
+            </div>
+            <PwaIosModal />
+            <PwaSuccessToast />
+          </PwaProvider>
         </NextIntlClientProvider>
       </body>
     </html>

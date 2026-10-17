@@ -11,11 +11,16 @@ import {
   useLoad,
   Workspace,
 } from "./Workspace";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
+
 export function CostView({ type }: { type: keyof typeof templates }) {
+  const { can, isAdmin } = usePermissions();
+  const canManage = isAdmin || can("costs.manage");
+
   const template = templates[type],
     centers = useLoad<{
       rows: { code: string; name: string; data: { type: string } }[];
-    }>("/api/registers/cost-centers", { rows: [] });
+    }>("/api/registers/cost-centers?lookup=true", { rows: [] });
   const [center, setCenter] = useState(""),
     [query, setQuery] = useState(""),
     [inputs, setInputs] = useState<Record<string, string>>({}),
@@ -47,6 +52,7 @@ export function CostView({ type }: { type: keyof typeof templates }) {
   }, [center, query, type]); // eslint-disable-line react-hooks/exhaustive-deps
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (!canManage) return;
     setBusy(true);
     try {
       await api("/api/costs/" + type, {
@@ -65,7 +71,7 @@ export function CostView({ type }: { type: keyof typeof templates }) {
     }
   }
   return (
-    <Workspace title={template.title} error={error}>
+    <Workspace title={template.title} error={error || centers.error}>
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="مركز التكلفة">
           <select
@@ -87,20 +93,22 @@ export function CostView({ type }: { type: keyof typeof templates }) {
       </div>
       {center && (
         <>
-          <form
-            id={`cost-inputs-${type}`}
-            onSubmit={save}
-            className="rounded-xl border bg-white p-5 space-y-4"
-          >
-            <h2 className="font-bold">مدخلات التقرير</h2>
-            <p className="text-sm">
-              أدخل القيم في الخلايا البيضاء داخل الجدول أدناه، ثم احفظ لإعادة
-              حساب النتائج المظللة.
-            </p>
-            <button disabled={busy} className={buttonClass}>
-              حفظ المدخلات وحساب التقرير
-            </button>
-          </form>
+          {canManage && (
+            <form
+              id={`cost-inputs-${type}`}
+              onSubmit={save}
+              className="rounded-xl border bg-white p-5 space-y-4"
+            >
+              <h2 className="font-bold">مدخلات التقرير</h2>
+              <p className="text-sm">
+                أدخل القيم في الخلايا البيضاء داخل الجدول أدناه، ثم احفظ لإعادة
+                حساب النتائج المظللة.
+              </p>
+              <button disabled={busy} className={buttonClass}>
+                حفظ المدخلات وحساب التقرير
+              </button>
+            </form>
+          )}
           <div className="flex justify-between text-sm">
             <span>بنود القيود المرتبطة بالفترة: {sourceLines}</span>
             <button
@@ -147,7 +155,7 @@ export function CostView({ type }: { type: keyof typeof templates }) {
                           className="p-3 tabular-nums"
                           title={issues[cell] || cell}
                         >
-                          {(template.inputs as Record<string, string>)[cell] ? (
+                          {(template.inputs as Record<string, string>)[cell] && canManage ? (
                             <input
                               disabled={busy}
                               form={`cost-inputs-${type}`}

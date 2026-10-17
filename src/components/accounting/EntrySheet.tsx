@@ -27,9 +27,7 @@ export function EntrySheet({
         )}
       </p>
       <div
-        className={`max-w-full rounded-lg border border-green-200 focus-within:border-green-700 ${
-          fitScreen ? "overflow-x-auto lg:overflow-x-visible" : "overflow-x-auto"
-        }`}
+        className="max-w-full rounded-lg border border-green-200 focus-within:border-green-700 overflow-x-auto"
         tabIndex={0}
         role="region"
         aria-label={label}
@@ -72,15 +70,19 @@ export function EntrySheet({
 export function EntryRow({
   children,
   label = "صف إدخال البيانات",
+  compact = false,
+  fitScreen = true,
 }: {
   children: React.ReactNode;
   label?: string;
+  compact?: boolean;
+  fitScreen?: boolean;
 }) {
   const cells = React.Children.toArray(children).filter(
     React.isValidElement,
   ) as React.ReactElement<{ label?: string }>[];
   return (
-    <EntrySheet label={label}>
+    <EntrySheet label={label} compact={compact} fitScreen={fitScreen}>
       <thead>
         <tr>
           {cells.map((cell, i) => (
@@ -93,7 +95,7 @@ export function EntryRow({
       <tbody>
         <tr>
           {cells.map((cell, i) => (
-            <td key={cell.key ?? i} className="min-w-40 [&_label>span]:sr-only">
+            <td key={cell.key ?? i} className="min-w-28 [&_label>span]:sr-only">
               {cell}
             </td>
           ))}

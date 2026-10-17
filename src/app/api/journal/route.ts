@@ -33,7 +33,58 @@ export async function GET(request: Request) {
       }),
       prisma.journalEntry.count({ where }),
     ]);
-    return ok({ entries, total, page });
+
+    const entryIds = entries.map((e) => e.id);
+    const reversals = entryIds.length
+      ? await prisma.journalEntry.findMany({
+          where: {
+            companyId: user.companyId,
+            reversalOf: { in: entryIds },
+          },
+          select: {
+            id: true,
+            number: true,
+            reversalOf: true,
+          },
+        })
+      : [];
+
+    const reversalMap = new Map<string, { id: string; number: number }>();
+    for (const r of reversals) {
+      if (r.reversalOf) {
+        reversalMap.set(r.reversalOf, { id: r.id, number: r.number });
+      }
+    }
+
+    const originalIds = entries
+      .map((e) => e.reversalOf)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+
+    const originals = originalIds.length
+      ? await prisma.journalEntry.findMany({
+          where: {
+            companyId: user.companyId,
+            id: { in: originalIds },
+          },
+          select: {
+            id: true,
+            number: true,
+          },
+        })
+      : [];
+
+    const originalMap = new Map<string, { id: string; number: number }>();
+    for (const o of originals) {
+      originalMap.set(o.id, { id: o.id, number: o.number });
+    }
+
+    const enrichedEntries = entries.map((e) => ({
+      ...e,
+      reversedBy: reversalMap.get(e.id) || null,
+      reversedEntry: e.reversalOf ? originalMap.get(e.reversalOf) || null : null,
+    }));
+
+    return ok({ entries: enrichedEntries, total, page });
   } catch (e) {
     return fail(e);
   }

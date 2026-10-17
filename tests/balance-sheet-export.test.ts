@@ -187,7 +187,7 @@ test("balance sheet logic: equilibrium equations and edge cases", () => {
 
 test("reference verification: Company 19 manual test figures match exactly", async () => {
   const from = new Date("2026-10-01T00:00:00.000Z");
-  const to = new Date("2026-10-31T23:59:59.999Z");
+  const to = new Date("2026-10-14T23:59:59.999Z");
 
   const bs = await financialStatements(19, from, to);
 

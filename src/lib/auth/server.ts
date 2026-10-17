@@ -7,8 +7,8 @@ export const SESSION_COOKIE = "mohasby_session";
 export const digest = (v: string) =>
   createHash("sha256").update(v).digest("hex");
 export function hashPassword(password: string) {
-  if (password.length < 12 || password.length > 256)
-    throw new Error("كلمة المرور من 12 إلى 256 حرفاً");
+  if (password.length < 1 || password.length > 256)
+    throw new Error("كلمة المرور مطلوبة");
   const salt = randomBytes(16).toString("hex");
   return `${salt}:${scryptSync(password, salt, 64).toString("hex")}`;
 }

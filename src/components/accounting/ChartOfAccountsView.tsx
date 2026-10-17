@@ -20,8 +20,12 @@ import { AccountStatsBar } from "./AccountStatsBar";
 import { AccountTree } from "./AccountTree";
 import { AccountTable } from "./AccountTable";
 import { AccountFormModal } from "./AccountFormModal";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 
 export const ChartOfAccountsView: React.FC = () => {
+  const { can, isAdmin } = usePermissions();
+  const canCreate = isAdmin || can("accounts.create");
+  const canEdit = isAdmin || can("accounts.edit");
   const t = useTranslations("coa");
   const locale = useLocale();
 
@@ -188,14 +192,16 @@ export const ChartOfAccountsView: React.FC = () => {
               <span>شركة نموذجية للتجارة والصناعة (فرع 1)</span>
             </div>
 
-            <Button
-              variant="primary"
-              onClick={() => handleOpenAddModal()}
-              className="gap-2"
-            >
-              <Plus size={16} weight="bold" />
-              <span>{t("addAccount")}</span>
-            </Button>
+            {canCreate && (
+              <Button
+                variant="primary"
+                onClick={() => handleOpenAddModal()}
+                className="gap-2"
+              >
+                <Plus size={16} weight="bold" />
+                <span>{t("addAccount")}</span>
+              </Button>
+            )}
           </div>
         }
       />
@@ -311,6 +317,8 @@ export const ChartOfAccountsView: React.FC = () => {
           {viewMode === "tree" ? (
             <AccountTree
               accounts={treeData}
+              canCreate={canCreate}
+              canEdit={canEdit}
               onAddChild={(parentCode) => handleOpenAddModal(parentCode)}
               onEdit={(account) => handleOpenEditModal(account)}
               expandedKeys={expandedKeys}
@@ -319,6 +327,8 @@ export const ChartOfAccountsView: React.FC = () => {
           ) : (
             <AccountTable
               accounts={flatAccounts}
+              canCreate={canCreate}
+              canEdit={canEdit}
               onAddChild={(parentCode) => handleOpenAddModal(parentCode)}
               onEdit={(account) => handleOpenEditModal(account)}
             />

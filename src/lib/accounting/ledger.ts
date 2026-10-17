@@ -295,8 +295,10 @@ export async function entryAction(
     });
     if (!entry) throw new HttpError(404, "القيد غير موجود");
     if (action === "reverse") {
-      if (entry.status !== "POSTED" || entry.reversalOf)
-        throw new HttpError(409, "يمكن عكس قيد مرحل أصلي فقط");
+      if (entry.reversalOf)
+        throw new HttpError(409, "هذا القيد هو قيد عكسي ولا يمكن عكسه");
+      if (entry.status !== "POSTED")
+        throw new HttpError(409, "يمكن عكس القيود المرحلة فقط");
       if (
         ["DEPRECIATION", "INVENTORY_CLOSE", "PAYROLL"].includes(entry.document)
       )
@@ -313,7 +315,7 @@ export async function entryAction(
       const prior = await tx.journalEntry.findUnique({
         where: { reversalOf: id },
       });
-      if (prior) return prior;
+      if (prior) return Object.assign(prior, { alreadyReversed: true });
       const date = dateOnly.parse(reversalDate);
       if (date < entry.date.toISOString().slice(0, 10))
         throw new HttpError(400, "تاريخ العكس قبل القيد الأصلي");

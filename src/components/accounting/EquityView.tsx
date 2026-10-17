@@ -10,6 +10,7 @@ import {
   useLoad,
   Workspace,
 } from "./Workspace";
+import { usePermissions } from "@/components/auth/PermissionsProvider";
 const fields = [
   ["capital", "رأس المال"],
   ["funding", "التمويل والمدفوعات"],
@@ -21,6 +22,9 @@ const fields = [
   ["salary", "رواتب خاصة بالشريك"],
 ];
 export function EquityView({ title }: { title: string }) {
+  const { can, isAdmin } = usePermissions();
+  const canDistribute = isAdmin || can("equity.distribute");
+
   const [from, setFrom] = useState(new Date().getUTCFullYear() + "-01-01"),
     [to, setTo] = useState(new Date().toISOString().slice(0, 10));
   const result = useLoad<{
@@ -89,6 +93,7 @@ export function EquityView({ title }: { title: string }) {
         كل النسب صفراً يوزع بالتساوي. الرصيد الدفتري يعرض مستقلاً للمطابقة. راجع
         تسوية المخزون قبل اعتماد الربح.
       </p>
+      {canDistribute && (
       <form onSubmit={save} className="space-y-3 print:hidden">
         <EntrySheet label="مدخلات الأرباح والخسائر للشركاء">
           <thead>
@@ -135,6 +140,7 @@ export function EquityView({ title }: { title: string }) {
           حفظ وإعادة الحساب
         </button>
       </form>
+      )}
       <h2 className="font-bold">توزيع الأرباح والخسائر</h2>
       <DataTable
         rows={result.data.rows}

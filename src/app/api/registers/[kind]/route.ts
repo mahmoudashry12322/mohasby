@@ -34,19 +34,21 @@ export async function GET(
     const { view: requiredViewPerm } = getRegisterPermissions(kind, partyType);
     const hasViewPerm = can(user, requiredViewPerm);
 
-    // General lookup permissions (for dropdowns when user is creating vouchers/documents)
+    // General lookup permissions (for dropdowns when user is creating vouchers/documents, or filtering stock)
     const hasLookupNeed =
       can(user, "journal.create") ||
       can(user, "journal.edit") ||
       can(user, "documents.create") ||
       can(user, "stock.movement") ||
       can(user, "payroll.post") ||
-      can(user, "assets.manage");
+      can(user, "assets.manage") ||
+      (can(user, "costs.view") && kind === "cost-centers") ||
+      (can(user, "stock.view") && (kind === "items" || kind === "warehouses"));
 
     if (kind === "employees") {
       const hasFullEmployeePerm =
         can(user, "employees.view") || can(user, "payroll.view");
-      if (!hasFullEmployeePerm && !isLookup && !hasLookupNeed) {
+      if (!hasFullEmployeePerm && !(isLookup && hasLookupNeed)) {
         throw new HttpError(403, "ليس لديك صلاحية: شؤون الموظفين — عرض");
       }
 
@@ -79,7 +81,7 @@ export async function GET(
     if (kind === "parties") {
       // If a specific partyType is queried (CUSTOMER, SUPPLIER, PARTNER)
       if (partyType) {
-        if (!hasViewPerm && !isLookup && !hasLookupNeed) {
+        if (!hasViewPerm && !(isLookup && hasLookupNeed)) {
           throw new HttpError(403, "ليس لديك صلاحية لعرض هذا الدليل");
         }
       } else {
@@ -88,7 +90,7 @@ export async function GET(
           can(user, "customers.view") ||
           can(user, "suppliers.view") ||
           can(user, "partners.view");
-        if (!canAnyParty && !isLookup && !hasLookupNeed) {
+        if (!canAnyParty && !(isLookup && hasLookupNeed)) {
           throw new HttpError(403, "ليس لديك صلاحية لعرض سجلات الأطراف");
         }
       }
@@ -100,7 +102,7 @@ export async function GET(
 
       // Filter rows strictly by what this user is allowed to see
       const filteredRows = rawRows.filter((r) => {
-        if (user.role === "admin" || isLookup || hasLookupNeed) return true;
+        if (user.role === "admin" || (isLookup && hasLookupNeed)) return true;
         const type = (r.data as Record<string, string>)?.type;
         if (type === "CUSTOMER") return can(user, "customers.view");
         if (type === "SUPPLIER") return can(user, "suppliers.view");
@@ -112,7 +114,7 @@ export async function GET(
     }
 
     // Other registers (items, warehouses, cost-centers, cost-items, farms, banks, lookups)
-    if (!hasViewPerm && !isLookup && !hasLookupNeed) {
+    if (!hasViewPerm && !(isLookup && hasLookupNeed)) {
       throw new HttpError(403, "ليس لديك صلاحية لعرض هذا الدليل");
     }
 
